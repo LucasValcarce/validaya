@@ -1,0 +1,42 @@
+package com.validaya.validaya.config;
+
+import com.validaya.validaya.entity.User;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.domain.AuditorAware;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.factory.PasswordEncoderFactories;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+import java.util.Optional;
+
+@Slf4j
+@Configuration
+public class InjectConfiguration {
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return PasswordEncoderFactories.createDelegatingPasswordEncoder();
+    }
+
+    @Bean
+    public AuditorAware<String> auditorAware() {
+        return () -> {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated()) {
+                return Optional.of("ADMIN");
+            }
+            if (authentication.getPrincipal() == null || authentication.getPrincipal() instanceof String) {
+                return Optional.of("ADMIN");
+            }
+            User user = (User) authentication.getPrincipal();
+            try {
+                return Optional.ofNullable(user.getEmail());
+            } catch (Exception e) {
+                return Optional.of("ADMIN");
+            }
+        };
+    }
+}
