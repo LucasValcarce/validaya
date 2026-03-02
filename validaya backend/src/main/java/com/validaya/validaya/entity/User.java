@@ -68,6 +68,19 @@ public class User {
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
+    // Encrypted face vector and verification metadata
+    @Column(name = "face_vector_encrypted", columnDefinition = "bytea")
+    private byte[] faceVectorEncrypted;
+
+    @Column(name = "face_hash", length = 255)
+    private String faceHash;
+
+    @Column(name = "enrollment_status", length = 32)
+    private String enrollmentStatus; // pending, verified, rejected
+
+    @Column(name = "identity_verified")
+    private Boolean identityVerified = false;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

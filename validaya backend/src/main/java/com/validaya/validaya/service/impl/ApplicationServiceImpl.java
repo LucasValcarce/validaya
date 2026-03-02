@@ -118,6 +118,8 @@ public class ApplicationServiceImpl implements ApplicationService {
     public ApplicationDto.Response submitDocuments(Long applicationId) {
         Application app = findOrThrow(applicationId);
         assertStatus(app, ApplicationStatus.pending_docs);
+
+        // TODO hacer la busceda y subida de documentos
         app.setStatus(ApplicationStatus.docs_submitted);
         // No submittedAt field in entity
         return MapperUtil.toApplicationResponse(applicationRepository.save(app));

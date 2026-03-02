@@ -6,6 +6,7 @@ import com.validaya.validaya.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -24,7 +25,9 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<AuthDto.AuthResponse>> register(
             @Valid @RequestBody AuthDto.RegisterRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok("Registro exitoso", authService.register(request)));
+        // Public registration is disabled. Users must enroll via biometric enrollment.
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(ApiResponse.error("Registration is disabled. Please enroll via biometric enrollment workflow."));
     }
 
     @PostMapping("/logout")

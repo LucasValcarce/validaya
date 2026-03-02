@@ -50,10 +50,6 @@ public class Notification {
     @Column(name = "read_at")
     private LocalDateTime readAt;
 
-    /**
-     * Polimorfismo ligero: entidad referenciada.
-     * Ej: referenceType = "application", referenceId = 42
-     */
     @Column(name = "reference_type", length = 50)
     private String referenceType;
 

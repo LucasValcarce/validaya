@@ -56,7 +56,7 @@ public class DataInitializer implements CommandLineRunner {
         if (!userRepository.existsByEmail("admin@validaya.com")) {
             User admin = User.builder()
                     .email("admin@validaya.com")
-                    .passwordHash(passwordEncoder.encode("[CHANGE_ME_ADMIN_PASSWORD]"))
+                    .passwordHash(passwordEncoder.encode("pass123"))
                     .fullName("Administrador Validaya")
                     .identification("0000000")
                     .userType(UserType.admin)
