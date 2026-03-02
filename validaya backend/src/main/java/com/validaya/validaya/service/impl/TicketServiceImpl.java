@@ -12,6 +12,7 @@ import com.validaya.validaya.utils.QrUtil;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +28,8 @@ public class TicketServiceImpl implements TicketService {
     private final TicketRepository ticketRepository;
     private final ApplicationRepository applicationRepository;
     private final QrUtil qrUtil;
+    @Value("${validaya.qr-code-expiration-time}")
+    private Integer validTimeTicket;
 
     @Override
     public TicketDto.Response getById(Long id) {
@@ -64,7 +67,7 @@ public class TicketServiceImpl implements TicketService {
                 .ticketCode(ticketCode)
                 .status(TicketStatus.active)
                 .qrPayload(qrPayload)
-                .expiryAt(LocalDateTime.now().plusDays(30))
+                .expiryAt(LocalDateTime.now().plusDays(validTimeTicket))
                 .build();
 
         ticket = ticketRepository.save(ticket);
