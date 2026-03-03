@@ -17,7 +17,6 @@ import java.math.BigDecimal;
 public class DataInitializer implements CommandLineRunner {
 
     private final UserRepository userRepository;
-    private final RoleRepository roleRepository;
     private final InstitutionRepository institutionRepository;
     private final DocumentTypeRepository documentTypeRepository;
     private final ProcedureRepository procedureRepository;
@@ -27,29 +26,10 @@ public class DataInitializer implements CommandLineRunner {
     @Override
     public void run(String... args) {
         log.info("Inicializando datos base...");
-        initRoles();
         initAdminUser();
         initDocumentTypes();
         initInstitutions();
         log.info("Datos base inicializados correctamente.");
-    }
-
-    private void initRoles() {
-        createRoleIfAbsent("ADMIN", "Administrador del sistema");
-        createRoleIfAbsent("STAFF", "Personal de institución");
-        createRoleIfAbsent("CITIZEN", "Ciudadano");
-    }
-
-    private void createRoleIfAbsent(String name, String description) {
-        if (!roleRepository.existsByName(name)) {
-            Role role = Role.builder()
-                    .name(name)
-                    .description(description)
-                    .isSystem(true)
-                    .build();
-            roleRepository.save(role);
-            log.info("Rol creado: {}", name);
-        }
     }
 
     private void initAdminUser() {

@@ -23,9 +23,12 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+
 @RequiredArgsConstructor
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity(prePostEnabled = true)
 public class WebSecurityConfiguration implements WebMvcConfigurer, Serializable {
 
     private final CorsFilter corsFilter;

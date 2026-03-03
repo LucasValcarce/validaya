@@ -238,5 +238,23 @@ public class MapperUtil {
         return dto;
     }
 
+    // ── InstitutionStaff ──────────────────────────────────────────────────
+    public static InstitutionStaffDto.Response toInstitutionStaffResponse(InstitutionStaff staff) {
+        InstitutionStaffDto.Response dto = new InstitutionStaffDto.Response();
+        dto.setId(staff.getId());
+        dto.setUserId(staff.getUser().getId());
+        dto.setUserEmail(staff.getUser().getEmail());
+        dto.setUserFullName(staff.getUser().getFullName());
+        dto.setUserIdentification(staff.getUser().getIdentification());
+        dto.setUserType(staff.getUser().getUserType() != null ? staff.getUser().getUserType().name() : null);
+        dto.setInstitutionId(staff.getInstitution().getId());
+        dto.setInstitutionName(staff.getInstitution().getName());
+        dto.setEmployeeCode(staff.getEmployeeCode());
+        dto.setBranchId(staff.getBranch().getId());
+        dto.setIsActive(staff.getIsActive());
+        dto.setAssignedAt(staff.getAssignedAt());
+        return dto;
+    }
+
     private MapperUtil() {}
 }

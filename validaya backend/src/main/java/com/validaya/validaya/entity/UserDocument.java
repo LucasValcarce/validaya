@@ -85,11 +85,6 @@ public class UserDocument {
     @Column(nullable = false)
     private DocumentSource source;
 
-    /** API externa usada para verificar el documento, si aplica. */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "api_integration_id")
-    private ApiIntegration apiIntegration;
-
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

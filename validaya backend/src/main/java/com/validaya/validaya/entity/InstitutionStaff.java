@@ -26,12 +26,15 @@ public class InstitutionStaff {
     @JoinColumn(name = "institution_id", nullable = false)
     private Institution institution;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "role_id", nullable = false)
-    private Role role;
-
     @Column(name = "employee_code", length = 50)
     private String employeeCode;
+
+    /**
+     * Rol dentro de la institución se determina por User.userType:
+     * - institution_admin: administrador de institución
+     * - staff: personal de la institución
+     * Los permisos se manejan completamente a través de UserType.
+     */
 
     /** Sucursal asignada. NULL = puede atender cualquier sucursal de la institución. */
     @ManyToOne(fetch = FetchType.LAZY)
