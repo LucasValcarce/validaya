@@ -49,16 +49,32 @@ public class BiometricsServiceImpl implements BiometricsService {
         byte[] bytes = Base64.getDecoder().decode(faceBase64.getBytes(StandardCharsets.UTF_8));
         String hash = sha256(bytes);
 
-        return userRepository.findByIdentification(ident).map(u -> {
-            u.setFaceVectorEncrypted(bytes);
-            u.setFaceHash(hash);
-            u.setEnrollmentStatus("verified");
-            u.setFaceVerified(true);
-            // identityVerified left false until external verification
-            userRepository.save(u);
-            enrollSessions.remove(sessionToken);
-            return true;
-        }).orElse(false);
+        // Buscar usuario por identificación
+        User user = userRepository.findByIdentification(ident).orElse(null);
+        
+        // Si no existe, crear un usuario base (ciudadano, sin contraseña)
+        if (user == null) {
+            user = User.builder()
+                    .identification(ident)
+                    .email("user_" + ident + "@validaya.local") // Email temporal
+                    .fullName(ident) // Será actualizado después
+                    .userType(com.validaya.validaya.entity.enums.UserType.citizen)
+                    .passwordHash("") // Sin contraseña inicialmente
+                    .isActive(true)
+                    .faceVerified(false)
+                    .build();
+            user = userRepository.save(user);
+        }
+
+        // Actualizar datos faciales
+        user.setFaceVectorEncrypted(bytes);
+        user.setFaceHash(hash);
+        user.setEnrollmentStatus("verified");
+        user.setFaceVerified(true);
+        userRepository.save(user);
+        
+        enrollSessions.remove(sessionToken);
+        return true;
     }
 
     @Override
