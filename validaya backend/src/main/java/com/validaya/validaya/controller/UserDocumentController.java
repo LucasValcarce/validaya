@@ -46,13 +46,13 @@ public class UserDocumentController {
 
         if (document == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.error("Documento no encontrado", null));
+                    .body(ApiResponse.error("Documento no encontrado"));
         }
 
         // Validar que el documento pertenezca al usuario actual
         if (!document.getUser().getId().equals(userId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ApiResponse.error("No tienes permiso para acceder a este documento", null));
+                    .body(ApiResponse.error("No tienes permiso para acceder a este documento"));
         }
 
         UserDocumentDto.Response response = MapperUtil.toUserDocumentResponse(document);
