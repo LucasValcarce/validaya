@@ -156,12 +156,6 @@ public class AuthServiceImpl implements AuthService {
         return response;
     }
 
-    @Override
-    @Transactional
-    public AuthDto.AuthResponse register(AuthDto.RegisterRequest request) {
-        // Registro está deshabilitado; los usuarios se crean a través del flujo de enrollment facial
-        throw new UnsupportedOperationException("El registro público está deshabilitado. Use el flujo de enrollment facial.");
-    }
 
     @Override
     public void logout(String token) {

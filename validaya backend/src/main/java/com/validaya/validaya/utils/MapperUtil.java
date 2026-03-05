@@ -44,6 +44,23 @@ public class MapperUtil {
         return dto;
     }
 
+    // ── UserDocument ──────────────────────────────────────────────────────
+    public static UserDocumentDto.Response toUserDocumentResponse(UserDocument doc) {
+        UserDocumentDto.Response dto = new UserDocumentDto.Response();
+        dto.setId(doc.getId());
+        dto.setUserId(doc.getUser().getId());
+        dto.setDocumentTypeId(doc.getDocumentType().getId());
+        dto.setDocumentTypeName(doc.getDocumentType().getName());
+        dto.setDocumentNumber(doc.getDocumentNumber());
+        dto.setIssueDate(doc.getIssueDate());
+        dto.setExpiryDate(doc.getExpiryDate());
+        dto.setStatus(doc.getStatus());
+        dto.setVerificationStatus(doc.getVerificationStatus());
+        dto.setSource(doc.getSource());
+        dto.setCreatedAt(doc.getCreatedAt());
+        return dto;
+    }
+
     // ── Institution ───────────────────────────────────────────────────────
     public static InstitutionDto.Response toInstitutionResponse(Institution inst) {
         InstitutionDto.Response dto = new InstitutionDto.Response();

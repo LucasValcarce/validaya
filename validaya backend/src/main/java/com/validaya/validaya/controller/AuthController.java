@@ -75,16 +75,6 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.ok("Login exitoso", response));
     }
 
-    /**
-     * Registro público está deshabilitado.
-     */
-    @PostMapping("/register")
-    public ResponseEntity<ApiResponse<AuthDto.AuthResponse>> register(
-            @Valid @RequestBody AuthDto.RegisterRequest request) {
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.error("Registro público deshabilitado. Use el flujo de enrollment facial."));
-    }
-
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(
             @RequestHeader("Authorization") String authHeader) {

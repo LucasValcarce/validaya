@@ -25,10 +25,5 @@ public interface AuthService {
      */
     AuthDto.AuthResponse login(AuthDto.LoginRequest request);
 
-    /**
-     * Registro (deshabilitado, pero mantiene la firma para compatibilidad).
-     */
-    AuthDto.AuthResponse register(AuthDto.RegisterRequest request);
-
     void logout(String token);
 }
