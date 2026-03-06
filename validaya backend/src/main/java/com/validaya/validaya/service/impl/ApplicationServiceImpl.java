@@ -20,6 +20,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -32,6 +34,7 @@ public class ApplicationServiceImpl implements ApplicationService {
     private final ProcedureRepository procedureRepository;
     private final BranchRepository branchRepository;
     private final UserDocumentRepository userDocumentRepository;
+    private final ProcedureDocumentRequirementRepository documentRequirementRepository;
     private final NotificationService notificationService;
     private final AuditLogService auditLogService;
 
@@ -55,7 +58,7 @@ public class ApplicationServiceImpl implements ApplicationService {
         Application app = Application.builder()
                 .user(user)
                 .procedure(procedure)
-                .status(ApplicationStatus.pending_docs)
+                .status(ApplicationStatus.pending_documents)
                 .totalAmount(procedure.getBasePrice().add(procedure.getPlatformFee()))
                 .build();
 
@@ -68,16 +71,43 @@ public class ApplicationServiceImpl implements ApplicationService {
         app = applicationRepository.save(app);
         log.info("Nueva solicitud creada: id={}", app.getId());
 
-        notificationService.send(
-                userId,
-                "Solicitud creada",
-                "Tu solicitud APP-" + app.getId() + " fue creada exitosamente.",
-                NotificationChannel.in_app,
-                "application",
-                app.getId()
-        );
+        // Validación automática de documentos
+        ApplicationDto.Response response = MapperUtil.toApplicationResponse(app);
+        ApplicationDto.DocumentValidationResponse validation = performAutomaticDocumentValidation(app);
+        
+        // Mapear información de validación a la respuesta
+        response.setDocumentValidationCompleted(true);
+        response.setAllDocumentsPresent(validation.isAllDocumentsPresent());
+        response.setMissingDocuments(validation.getMissingDocuments());
+        
+        // Si tiene todos los documentos, cambiar estado a payment_pending automáticamente
+        if (validation.isAllDocumentsPresent()) {
+            app.setStatus(ApplicationStatus.payment_pending);
+            applicationRepository.save(app);
+            response.setStatus(ApplicationStatus.payment_pending);
+            
+            log.info("Solicitud {} automáticamente verificada. Estado: payment_pending", app.getId());
+            notificationService.send(
+                    userId,
+                    "Solicitud verificada",
+                    "Tu solicitud APP-" + app.getId() + " ha sido verificada exitosamente. Procede al pago.",
+                    NotificationChannel.in_app,
+                    "application",
+                    app.getId()
+            );
+        } else {
+            log.info("Solicitud {} requiere documentos adicionales", app.getId());
+            notificationService.send(
+                    userId,
+                    "Documentos faltantes",
+                    "Tu solicitud APP-" + app.getId() + " requiere " + validation.getMissingDocuments().size() + " documentos adicionales.",
+                    NotificationChannel.in_app,
+                    "application",
+                    app.getId()
+            );
+        }
 
-        return MapperUtil.toApplicationResponse(app);
+        return response;
     }
 
     @Override
@@ -113,102 +143,63 @@ public class ApplicationServiceImpl implements ApplicationService {
                 .toList();
     }
 
-    @Override
-    @Transactional
-    public ApplicationDto.Response submitDocuments(Long applicationId) {
-        Application app = findOrThrow(applicationId);
-        assertStatus(app, ApplicationStatus.pending_docs);
 
-        // TODO hacer la busceda y subida de documentos
-        app.setStatus(ApplicationStatus.docs_submitted);
-        // No submittedAt field in entity
-        return MapperUtil.toApplicationResponse(applicationRepository.save(app));
-    }
+    private ApplicationDto.DocumentValidationResponse performAutomaticDocumentValidation(Application app) {
+        Procedure procedure = app.getProcedure();
+        User user = app.getUser();
 
-    @Override
-    @Transactional
-    public ApplicationDto.Response review(Long applicationId, ApplicationDto.ReviewRequest request, Long staffId) {
-        Application app = findOrThrow(applicationId);
-        ApplicationStatus old = app.getStatus();
+        // Obtener requisitos del procedimiento
+        List<ProcedureDocumentRequirement> requirements = 
+                documentRequirementRepository.findByProcedureIdOrderByDisplayOrder(procedure.getId());
 
-        app.setStatus(request.getNewStatus());
-        if (request.getRejectionReason() != null) {
-            app.setRejectionReason(request.getRejectionReason());
-        }
-        if (request.getNewStatus() == ApplicationStatus.completed) {
-            app.setCompletedAt(LocalDateTime.now());
-        }
+        // Obtener documentos del usuario
+        List<UserDocument> userDocuments = userDocumentRepository.findByUserId(user.getId());
+        Map<Long, UserDocument> userDocMap = userDocuments.stream()
+                .collect(Collectors.toMap(doc -> doc.getDocumentType().getId(), doc -> doc));
 
-        app = applicationRepository.save(app);
-        auditLogService.log(staffId, "application.review", "applications", app.getId(), old, request.getNewStatus(), null);
-        return MapperUtil.toApplicationResponse(app);
-    }
+        // Construir respuesta de validación
+        ApplicationDto.DocumentValidationResponse response = new ApplicationDto.DocumentValidationResponse();
+        response.setApplicationId(app.getId());
+        response.setApplicationNumber("APP-" + app.getId());
+        response.setStatus(app.getStatus());
+        response.setRequiredDocuments(new ArrayList<>());
+        response.setMissingDocuments(new ArrayList<>());
 
-    @Override
-    @Transactional
-    public ApplicationDocumentDto.Response addDocument(ApplicationDocumentDto.SubmitRequest request) {
-        Application app = findOrThrow(request.getApplicationId());
+        // Comparar requisitos con documentos del usuario
+        for (ProcedureDocumentRequirement req : requirements) {
+            ApplicationDto.DocumentValidationResponse.RequiredDocumentDto docDto = 
+                    new ApplicationDto.DocumentValidationResponse.RequiredDocumentDto();
+            
+            docDto.setDocumentTypeId(req.getDocumentType().getId());
+            docDto.setDocumentTypeName(req.getDocumentType().getName());
+            docDto.setMandatory(req.getIsMandatory() != null ? req.getIsMandatory() : true);
+            docDto.setMaxAgeMonths(req.getMaxAgeMonths());
+            docDto.setNotes(req.getNotes());
 
-        UserDocument userDoc = userDocumentRepository.findById(request.getUserDocumentId())
-                .orElseThrow(() -> new EntityNotFoundException("Documento no encontrado"));
-
-        if (request.getRequirementId() == null) {
-            throw new IllegalArgumentException("requirementId es requerido");
-        }
-
-        ProcedureDocumentRequirement req = ProcedureDocumentRequirement.builder()
-                .id(request.getRequirementId())
-                .build();
-
-        ApplicationDocument appDoc = ApplicationDocument.builder()
-                .application(app)
-                .userDocument(userDoc)
-                .requirement(req)
-                .verificationStatus(AppDocVerificationStatus.pending)
-                .build();
-
-        return MapperUtil.toAppDocResponse(appDocRepository.save(appDoc));
-    }
-
-    @Override
-    @Transactional
-    public ApplicationDocumentDto.Response reviewDocument(Long docId,
-                                                          ApplicationDocumentDto.ReviewRequest request,
-                                                          Long staffId) {
-        ApplicationDocument doc = appDocRepository.findById(docId)
-                .orElseThrow(() -> new EntityNotFoundException("Documento de solicitud no encontrado"));
-
-        doc.setVerificationStatus(request.getVerificationStatus());
-        doc.setVerifiedAt(LocalDateTime.now());
-
-        if (request.getRejectionReason() != null) {
-            doc.setComments(request.getRejectionReason());
+            UserDocument userDoc = userDocMap.get(req.getDocumentType().getId());
+            if (userDoc != null) {
+                docDto.setPresent(true);
+                docDto.setUserDocumentCreatedAt(userDoc.getCreatedAt());
+                response.getRequiredDocuments().add(docDto);
+            } else {
+                docDto.setPresent(false);
+                if (req.getIsMandatory() != null && req.getIsMandatory()) {
+                    response.getMissingDocuments().add(docDto);
+                }
+                response.getRequiredDocuments().add(docDto);
+            }
         }
 
-        return MapperUtil.toAppDocResponse(appDocRepository.save(doc));
-    }
+        // Determinar si tiene todos los documentos requeridos
+        boolean allDocumentsPresent = response.getMissingDocuments().isEmpty();
+        response.setAllDocumentsPresent(allDocumentsPresent);
 
-    @Override
-    @Transactional
-    public void cancel(Long applicationId, Long userId) {
-        Application app = findOrThrow(applicationId);
-        if (!app.getUser().getId().equals(userId)) {
-            throw new IllegalStateException("No autorizado para cancelar esta solicitud");
-        }
-        app.setStatus(ApplicationStatus.cancelled);
-        applicationRepository.save(app);
+        return response;
     }
 
     private Application findOrThrow(Long id) {
         return applicationRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Solicitud no encontrada: " + id));
-    }
-
-    private void assertStatus(Application app, ApplicationStatus expected) {
-        if (app.getStatus() != expected) {
-            throw new IllegalStateException(
-                    "Estado incorrecto. Esperado: " + expected + ", actual: " + app.getStatus());
-        }
     }
 
     private Long parseAppNumber(String applicationNumber) {

@@ -40,6 +40,32 @@ public class ApplicationDto {
         private LocalDateTime completedAt;
         private LocalDateTime createdAt;
         private List<ApplicationDocumentDto.Response> documents;
+        
+        // Información de validación automática
+        private boolean documentValidationCompleted;
+        private boolean allDocumentsPresent;
+        private List<DocumentValidationResponse.RequiredDocumentDto> missingDocuments;
+    }
+
+    @Data
+    public static class DocumentValidationResponse {
+        private Long applicationId;
+        private String applicationNumber;
+        private ApplicationStatus status;
+        private boolean allDocumentsPresent;
+        private List<RequiredDocumentDto> requiredDocuments;
+        private List<RequiredDocumentDto> missingDocuments;
+        
+        @Data
+        public static class RequiredDocumentDto {
+            private Long documentTypeId;
+            private String documentTypeName;
+            private boolean isMandatory;
+            private Integer maxAgeMonths;
+            private String notes;
+            private boolean isPresent;
+            private LocalDateTime userDocumentCreatedAt;
+        }
     }
 
     @Data
