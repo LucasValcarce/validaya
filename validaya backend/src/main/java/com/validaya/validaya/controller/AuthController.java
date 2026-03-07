@@ -58,7 +58,6 @@ public class AuthController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<AuthDto.AuthResponse>> setPassword(
             @Valid @RequestBody AuthDto.SetPasswordRequest request) {
-        // Obtener userId del JWT actual
         Long userId = getCurrentUserId();
         AuthDto.AuthResponse response = authService.setPassword(userId, request.getPassword());
         return ResponseEntity.ok(ApiResponse.ok("Contraseña establecida correctamente", response));
@@ -87,8 +86,7 @@ public class AuthController {
      * Método auxiliar para obtener el ID del usuario del JWT actual.
      */
     private Long getCurrentUserId() {
-        // Spring Security proporciona el JWT a través de SecurityContextHolder
-        org.springframework.security.core.Authentication auth = 
+        org.springframework.security.core.Authentication auth =
             org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
         
         if (auth != null && auth.getPrincipal() instanceof com.validaya.validaya.config.security.UserPrincipal) {

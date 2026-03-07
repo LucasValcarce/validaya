@@ -21,9 +21,6 @@ public class UserDocumentController {
 
     private final UserDocumentService userDocumentService;
 
-    /**
-     * Obtener todos los documentos del usuario autenticado.
-     */
     @GetMapping
     public ResponseEntity<ApiResponse<List<UserDocumentDto.Response>>> getMyDocuments() {
         Long userId = getCurrentUserId();
@@ -34,10 +31,6 @@ public class UserDocumentController {
         return ResponseEntity.ok(ApiResponse.ok(responses));
     }
 
-    /**
-     * Obtener un documento específico del usuario autenticado.
-     * Valida que el documento pertenezca al usuario actual.
-     */
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<UserDocumentDto.Response>> getDocument(@PathVariable Long id) {
         Long userId = getCurrentUserId();
@@ -49,7 +42,6 @@ public class UserDocumentController {
                     .body(ApiResponse.error("Documento no encontrado"));
         }
 
-        // Validar que el documento pertenezca al usuario actual
         if (!document.getUser().getId().equals(userId)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(ApiResponse.error("No tienes permiso para acceder a este documento"));
@@ -59,9 +51,6 @@ public class UserDocumentController {
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
-    /**
-     * Método auxiliar para obtener el ID del usuario del JWT actual.
-     */
     private Long getCurrentUserId() {
         org.springframework.security.core.Authentication auth = 
             org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
