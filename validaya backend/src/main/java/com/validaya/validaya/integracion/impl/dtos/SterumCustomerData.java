@@ -11,56 +11,16 @@ import lombok.*;
 @NoArgsConstructor
 @Builder
 public class SterumCustomerData {
-
-    /**
-     * Customer first name
-     */
     private String name;
-
-    /**
-     * Customer last name
-     */
     private String lastname;
-
-    /**
-     * Document number (ID, passport, etc.)
-     */
     @JsonProperty("document_number")
     private String documentNumber;
-
-    /**
-     * Customer email
-     */
     private String email;
-
-    /**
-     * Customer phone
-     */
     private String phone;
-
-    /**
-     * Street address
-     */
     private String address;
-
-    /**
-     * City
-     */
-    private String city;
-
-    /**
-     * Country code
-     */
-    private String country;
-
-    /**
-     * State/Province
-     */
-    private String state;
-
-    /**
-     * Postal code
-     */
+    private String city = "Santa Cruz de la Sierra";;
+    private String country = "BO";
+    private String state = "Santa Cruz";
     @JsonProperty("zip_code")
-    private String zipCode;
+    private String zipCode = "0000";
 }

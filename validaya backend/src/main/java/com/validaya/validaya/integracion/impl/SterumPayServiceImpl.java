@@ -3,15 +3,16 @@ package com.validaya.validaya.integracion.impl;
 import com.validaya.validaya.config.SterumPayProperties;
 import com.validaya.validaya.integracion.SterumPayService;
 import com.validaya.validaya.integracion.impl.dtos.*;
+import com.validaya.validaya.utils.CryptoRSA;
 import com.validaya.validaya.utils.RsaEncryptionUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatusCode;
+import org.hibernate.validator.internal.util.stereotypes.Lazy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -28,7 +29,9 @@ public class SterumPayServiceImpl implements SterumPayService {
 
     private final SterumPayProperties properties;
     private final RestClient restClient;
-
+    @Autowired
+    @Lazy
+    private RsaEncryptionUtil rsaEncryptionUtil;
     // Token management
     private volatile String jwtToken = null;
     private volatile long tokenExpirationTime = 0;
@@ -48,21 +51,13 @@ public class SterumPayServiceImpl implements SterumPayService {
         return authenticateWithRetry();
     }
 
-    /**
-     * Authenticates with Stereum Pay API with retry logic.
-     */
-    private StereumAuthResponse authenticateWithRetry() {
+    public StereumAuthResponse authenticateWithRetry() {
         int attempt = 0;
         Exception lastException = null;
 
         while (attempt < properties.getMaxRetries()) {
             try {
-                // Encrypt password using RSA
-                String encryptedPassword = RsaEncryptionUtil.encrypt(
-                        properties.getPassword(),
-                        properties.getPublicKey()
-                );
-
+                String encryptedPassword = rsaEncryptionUtil.rsaEncryptionOaepSha256(properties.getClaveIntegracion());
                 StereumAuthRequest request = new StereumAuthRequest();
                 request.setUsername(properties.getUsername());
                 request.setPassword(encryptedPassword);
@@ -71,8 +66,9 @@ public class SterumPayServiceImpl implements SterumPayService {
 
                 ResponseEntity<StereumAuthResponse> response = restClient.post()
                         .uri(properties.getBaseUrl() + "/api/v1/auth/token")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .accept(MediaType.APPLICATION_JSON)
+                        .header("Authorization", "Basic " + properties.getApiKey())
+                        .header("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+                        .header("Accept", MediaType.APPLICATION_JSON_VALUE)
                         .body(request)
                         .retrieve()
                         .toEntity(StereumAuthResponse.class);
@@ -150,8 +146,9 @@ public class SterumPayServiceImpl implements SterumPayService {
                 ResponseEntity<SterumCreateChargeResponse> response = restClient.post()
                         .uri(properties.getBaseUrl() + "/api/v1/transactions/create-charge")
                         .header("Authorization", "Bearer " + jwtToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .accept(MediaType.APPLICATION_JSON)
+                        .header("x-api-key", properties.getApiKey())
+                        .header("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+                        .header("Accept", MediaType.APPLICATION_JSON_VALUE)
                         .body(request)
                         .retrieve()
                         .toEntity(SterumCreateChargeResponse.class);
@@ -214,7 +211,8 @@ public class SterumPayServiceImpl implements SterumPayService {
                 ResponseEntity<SterumVerifyResponse> response = restClient.get()
                         .uri(properties.getBaseUrl() + "/api/v1/transactions/" + transactionId + "/verify")
                         .header("Authorization", "Bearer " + jwtToken)
-                        .accept(MediaType.APPLICATION_JSON)
+                        .header("Content-Type", MediaType.APPLICATION_JSON_VALUE)
+                        .header("Accept", MediaType.APPLICATION_JSON_VALUE)
                         .retrieve()
                         .toEntity(SterumVerifyResponse.class);
 
@@ -455,6 +453,11 @@ public class SterumPayServiceImpl implements SterumPayService {
      * Generates unique idempotency key.
      */
     private String generateIdempotencyKey() {
-        return UUID.randomUUID().toString().replace("-", "").substring(0, 32);
+        StringBuilder uuidBuilder = new StringBuilder();
+        while (uuidBuilder.length() < 50) {
+            String uuid = UUID.randomUUID().toString().replace("-", ""); // 32 caracteres
+            uuidBuilder.append(uuid);
+        }
+        return uuidBuilder.substring(0, 50);
     }
 }

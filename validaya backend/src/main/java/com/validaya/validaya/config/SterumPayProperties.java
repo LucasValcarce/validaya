@@ -13,17 +13,21 @@ public class SterumPayProperties {
 
     private String username;
 
-    private String password;
+    private String claveIntegracion;
 
     private String publicKey;
 
     private String webhookSecret;
 
+    private String callbackUrl;
+
     private int connectTimeout = 5000;
 
     private int readTimeout = 10000;
 
-    private long tokenRefreshThreshold = 300000; // 5 minutes
+    private long tokenRefreshThreshold = 300000;
+
+    private String apiKey;
 
     private int maxRetries = 3;
 

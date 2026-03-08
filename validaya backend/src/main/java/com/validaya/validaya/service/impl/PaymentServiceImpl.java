@@ -15,7 +15,12 @@ import com.validaya.validaya.repository.PaymentRepository;
 import com.validaya.validaya.service.NotificationService;
 import com.validaya.validaya.service.PaymentService;
 import com.validaya.validaya.service.TicketService;
+import com.validaya.validaya.service.UserDocumentService;
 import com.validaya.validaya.utils.MapperUtil;
+import com.validaya.validaya.entity.UserDocument;
+import com.validaya.validaya.entity.enums.DocumentSource;
+import com.validaya.validaya.entity.enums.DocumentStatus;
+import com.validaya.validaya.entity.enums.VerificationStatus;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +48,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentRepository paymentRepository;
     private final ApplicationRepository applicationRepository;
     private final TicketService ticketService;
+    private final UserDocumentService userDocumentService;
     private final SterumPayService sterumPayService;
     private final NotificationService notificationService;
     private final SterumPayProperties sterumPayProperties;
@@ -117,7 +123,6 @@ public class PaymentServiceImpl implements PaymentService {
                     .currency(sterumPayProperties.getDefaultBlockchainCurrency())
                     .idempotencyKey(idempotencyKey)
                     .chargeReason("Pago de solicitud APP-" + app.getId())
-                    .callback(buildCallbackUrl(payment.getId()))
                     .customer(customer)
                     .reference("APP-" + app.getId())
                     .build();
@@ -172,30 +177,17 @@ public class PaymentServiceImpl implements PaymentService {
     @Transactional(readOnly = true)
     public PaymentDto.Response getByApplication(Long applicationId) {
         log.info("Retrieving payment for application: {}", applicationId);
-        
         Payment payment = paymentRepository.findByApplicationId(applicationId)
-                .orElseThrow(() -> {
-                    log.error("Payment not found for application: {}", applicationId);
-                    return new EntityNotFoundException("Pago no encontrado para solicitud: " + applicationId);
-                });
-        
+                .orElseThrow(() -> new EntityNotFoundException("Pago no encontrado"));
         return MapperUtil.toPaymentResponse(payment);
     }
 
-    /**
-     * Retrieves payment by ID.
-     */
     @Override
     @Transactional(readOnly = true)
     public PaymentDto.Response getById(Long id) {
         log.info("Retrieving payment: {}", id);
-        
         Payment payment = paymentRepository.findById(id)
-                .orElseThrow(() -> {
-                    log.error("Payment not found: {}", id);
-                    return new EntityNotFoundException("Pago no encontrado: " + id);
-                });
-        
+                .orElseThrow(() -> new EntityNotFoundException("Pago no encontrado"));
         return MapperUtil.toPaymentResponse(payment);
     }
 
@@ -208,39 +200,27 @@ public class PaymentServiceImpl implements PaymentService {
     public PaymentDto.Response handleGatewayCallback(PaymentDto.GatewayCallback callback) {
         log.info("Processing gateway callback for transaction: {}", callback.getTransactionId());
 
-        // Find payment by transaction ID
         Payment payment = paymentRepository.findByTransactionId(callback.getTransactionId())
-                .orElseThrow(() -> {
-                    log.error("Payment not found for transaction: {}", callback.getTransactionId());
-                    return new EntityNotFoundException("Pago no encontrado: " + callback.getTransactionId());
-                });
+                .orElseThrow(() -> new EntityNotFoundException("Pago no encontrado"));
 
         String status = (callback.getStatus() != null ? callback.getStatus() : "").toUpperCase();
         
-        log.info("Processing payment {} with status: {}", payment.getId(), status);
-
-        // Handle different transaction statuses
         switch (status) {
             case "PAGADO":
             case "COMPLETED":
             case "APPROVED":
-                handleSuccessfulPayment(payment);
+                processSuccessfulPayment(payment);
                 break;
-                
             case "PENDIENTE":
             case "INICIADO":
-                handlePendingPayment(payment);
+                payment.setPaymentStatus(PaymentStatus.pending);
                 break;
-                
             case "CANCELADO":
             case "CANCELLED":
-                handleCancelledPayment(payment);
+                processFailedPayment(payment, "Pago cancelado");
                 break;
-                
-            case "ERROR":
             default:
-                handleFailedPayment(payment, callback);
-                break;
+                processFailedPayment(payment, callback.getStatus());
         }
 
         payment = paymentRepository.save(payment);
@@ -248,159 +228,95 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     /**
-     * Handles successful payment.
+     * Processes successful payment.
+     * Creates the output document as active and verified for immediate platform use.
+     * Ticket generation is optional and separate from payment completion.
      */
-    private void handleSuccessfulPayment(Payment payment) {
-        log.info("Processing successful payment: {}", payment.getId());
-        
+    private void processSuccessfulPayment(Payment payment) {
+        log.info("Processing approved payment: {}", payment.getId());
         payment.setPaymentStatus(PaymentStatus.completed);
         payment.setPaidAt(LocalDateTime.now());
-        
-        // Update application status
+
         Application app = payment.getApplication();
         app.setStatus(ApplicationStatus.payment_confirmed);
         applicationRepository.save(app);
 
-        // Generate ticket
         try {
-            ticketService.generateForApplication(app.getId());
-            log.info("Ticket generated for application: {}", app.getId());
-        } catch (Exception e) {
-            log.error("Error generating ticket: {}", e.getMessage(), e);
-            // Don't fail the payment process if ticket generation fails
-        }
-
-        // Send notification to user
-        try {
+            // Create the output document as active and verified for immediate platform use
+            log.info("Procedure for application {} has outputDocumentType: {}", 
+                    app.getId(), app.getProcedure().getOutputDocumentType());
+            
+            if (app.getProcedure().getOutputDocumentType() != null) {
+                UserDocument userDoc = UserDocument.builder()
+                        .user(app.getUser())
+                        .documentType(app.getProcedure().getOutputDocumentType())
+                        .issuingInstitution(app.getProcedure().getInstitution())
+                        .status(DocumentStatus.active)
+                        .verificationStatus(VerificationStatus.verified)
+                        .source(DocumentSource.platform_generated)
+                        .verifiedAt(LocalDateTime.now())
+                        .build();
+                
+                userDocumentService.register(userDoc);
+                log.info("Active document created for user {} after successful payment for application {}", 
+                        app.getUser().getId(), app.getId());
+            } else {
+                log.warn("No outputDocumentType configured for procedure of application {}. Document not created.", 
+                        app.getId());
+            }
+            
             notificationService.send(
                     app.getUser().getId(),
                     "Pago confirmado",
-                    "Tu pago para APP-" + app.getId() + " ha sido confirmado. Tu cita ha sido agendada.",
+                    "Tu pago para APP-" + app.getId() + " ha sido confirmado. Tu documento ya está disponible en la plataforma.",
                     com.validaya.validaya.entity.enums.NotificationChannel.in_app,
                     "payment",
                     payment.getId()
             );
         } catch (Exception e) {
-            log.error("Error sending notification: {}", e.getMessage(), e);
-        }
-
-        log.info("Payment confirmed and ticket generated for application: {}", app.getId());
-    }
-
-    /**
-     * Handles pending payment.
-     */
-    private void handlePendingPayment(Payment payment) {
-        log.info("Payment still pending: {}", payment.getId());
-        payment.setPaymentStatus(PaymentStatus.pending);
-    }
-
-    /**
-     * Handles cancelled payment.
-     */
-    private void handleCancelledPayment(Payment payment) {
-        log.info("Payment cancelled: {}", payment.getId());
-        
-        payment.setPaymentStatus(PaymentStatus.cancelled);
-        
-        // Notify user
-        try {
-            notificationService.send(
-                    payment.getApplication().getUser().getId(),
-                    "Pago cancelado",
-                    "Tu pago para APP-" + payment.getApplication().getId() + " ha sido cancelado.",
-                    com.validaya.validaya.entity.enums.NotificationChannel.in_app,
-                    "payment",
-                    payment.getId()
-            );
-        } catch (Exception e) {
-            log.error("Error sending cancellation notification: {}", e.getMessage(), e);
+            log.error("Error in post-payment processing for payment {}: {}", payment.getId(), e.getMessage(), e);
         }
     }
 
     /**
-     * Handles failed payment.
+     * Processes failed payment.
      */
-    private void handleFailedPayment(Payment payment, PaymentDto.GatewayCallback callback) {
-        log.warn("Payment failed: {}", payment.getId());
-        
+    private void processFailedPayment(Payment payment, String errorReason) {
+        log.warn("Processing failed payment: {} - {}", payment.getId(), errorReason);
         payment.setPaymentStatus(PaymentStatus.failed);
-        payment.setLastError(callback.getStatus());
+        payment.setLastError(errorReason);
 
-        // Update gateway response with error info
-        Map<String, Object> response = payment.getGatewayResponse() != null 
-                ? payment.getGatewayResponse()
-                : new HashMap<>();
-        response.put("status", callback.getStatus());
-        response.put("error", callback.getGatewayResponse());
-        response.put("error_at", LocalDateTime.now());
-        payment.setGatewayResponse(response);
-
-        // Notify user
         try {
             notificationService.send(
                     payment.getApplication().getUser().getId(),
                     "Pago rechazado",
-                    "Tu pago para APP-" + payment.getApplication().getId() + " fue rechazado. Por favor intenta nuevamente.",
+                    "Tu pago para APP-" + payment.getApplication().getId() + " fue rechazado.",
                     com.validaya.validaya.entity.enums.NotificationChannel.in_app,
                     "payment",
                     payment.getId()
             );
         } catch (Exception e) {
-            log.error("Error sending failure notification: {}", e.getMessage(), e);
+            log.error("Error sending notification: {}", e.getMessage());
         }
     }
 
     /**
-     * Builds callback URL for Stereum webhooks.
-     */
-    private String buildCallbackUrl(Long paymentId) {
-        // This should be configured in properties
-        return "https://your-domain.com/api/v1/payments/webhook";
-    }
-
-    /**
      * Verifies transaction status with Stereum Pay.
-     * Can be called to check payment status without waiting for webhook.
      */
     public PaymentDto.Response verifyTransaction(Long paymentId) {
         log.info("Verifying transaction for payment: {}", paymentId);
         
         Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new EntityNotFoundException("Pago no encontrado: " + paymentId));
+                .orElseThrow(() -> new EntityNotFoundException("Pago no encontrado"));
 
         try {
-            SterumVerifyResponse verifyResponse = sterumPayService.verificarTransaccion(
-                    payment.getTransactionId()
-            );
-
-            // Update payment with verification response
-            payment.setGatewayResponse(convertVerifyResponseToMap(verifyResponse));
-            
-            // Update status based on verification
-            switch (verifyResponse.getStatus().toUpperCase()) {
-                case "PAGADO":
-                    if (payment.getPaymentStatus() != PaymentStatus.completed) {
-                        handleSuccessfulPayment(payment);
-                    }
-                    break;
-                case "CANCELADO":
-                    payment.setPaymentStatus(PaymentStatus.cancelled);
-                    break;
-                case "ERROR":
-                    payment.setPaymentStatus(PaymentStatus.failed);
-                    payment.setLastError(verifyResponse.getError());
-                    break;
-                default:
-                    payment.setPaymentStatus(PaymentStatus.pending);
-            }
-
+            SterumVerifyResponse response = sterumPayService.verificarTransaccion(payment.getTransactionId());
+            updatePaymentStatus(payment, response.getStatus());
+            payment.setGatewayResponse(convertToMap(response));
             payment = paymentRepository.save(payment);
-            log.info("Transaction verification completed for payment: {}", paymentId);
-            
         } catch (Exception e) {
-            log.error("Error verifying transaction: {}", e.getMessage(), e);
-            throw new RuntimeException("Error al verificar la transacción: " + e.getMessage());
+            log.error("Error verifying transaction: {}", e.getMessage());
+            throw new RuntimeException("Error al verificar la transacción");
         }
 
         return MapperUtil.toPaymentResponse(payment);
@@ -413,54 +329,57 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("Canceling payment: {}", paymentId);
         
         Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new EntityNotFoundException("Pago no encontrado: " + paymentId));
+                .orElseThrow(() -> new EntityNotFoundException("Pago no encontrado"));
 
         try {
-            SterumCancelResponse cancelResponse = sterumPayService.cancelarTransaccion(
-                    payment.getTransactionId()
-            );
-
+            SterumCancelResponse response = sterumPayService.cancelarTransaccion(payment.getTransactionId());
             payment.setPaymentStatus(PaymentStatus.cancelled);
-            payment.setGatewayResponse(convertCancelResponseToMap(cancelResponse));
-            
+            payment.setGatewayResponse(convertToMap(response));
             payment = paymentRepository.save(payment);
-            log.info("Payment cancelled successfully: {}", paymentId);
-            
         } catch (Exception e) {
-            log.error("Error canceling payment: {}", e.getMessage(), e);
-            throw new RuntimeException("Error al cancelar el pago: " + e.getMessage());
+            log.error("Error canceling payment: {}", e.getMessage());
+            throw new RuntimeException("Error al cancelar el pago");
         }
 
         return MapperUtil.toPaymentResponse(payment);
     }
 
     /**
-     * Converts SterumVerifyResponse to Map for storage.
+     * Updates payment status based on transaction response.
      */
-    private Map<String, Object> convertVerifyResponseToMap(SterumVerifyResponse response) {
-        Map<String, Object> map = new HashMap<>();
-        map.put("status", response.getStatus());
-        map.put("amount", response.getAmount());
-        map.put("currency", response.getCurrency());
-        map.put("paid_amount", response.getPaidAmount());
-        map.put("paid_currency", response.getPaidCurrency());
-        map.put("tx_hash", response.getTxHash());
-        map.put("confirmations", response.getConfirmations());
-        map.put("paid_at", response.getPaidAt());
-        if (response.getError() != null) {
-            map.put("error", response.getError());
+    private void updatePaymentStatus(Payment payment, String transactionStatus) {
+        switch (transactionStatus.toUpperCase()) {
+            case "PAGADO":
+                processSuccessfulPayment(payment);
+                break;
+            case "CANCELADO":
+                payment.setPaymentStatus(PaymentStatus.cancelled);
+                break;
+            case "ERROR":
+                payment.setPaymentStatus(PaymentStatus.failed);
+                break;
+            default:
+                payment.setPaymentStatus(PaymentStatus.pending);
         }
-        return map;
     }
 
     /**
-     * Converts SterumCancelResponse to Map for storage.
+     * Converts response objects to map for storage.
      */
-    private Map<String, Object> convertCancelResponseToMap(SterumCancelResponse response) {
+    private Map<String, Object> convertToMap(Object response) {
+        if (response == null) return new HashMap<>();
+        
         Map<String, Object> map = new HashMap<>();
-        map.put("status", response.getStatus());
-        map.put("message", response.getMessage());
-        map.put("cancelled_at", response.getCancelledAt());
+        if (response instanceof SterumVerifyResponse) {
+            SterumVerifyResponse r = (SterumVerifyResponse) response;
+            map.put("status", r.getStatus());
+            map.put("paid_amount", r.getPaidAmount());
+            map.put("tx_hash", r.getTxHash());
+        } else if (response instanceof SterumCancelResponse) {
+            SterumCancelResponse r = (SterumCancelResponse) response;
+            map.put("status", r.getStatus());
+            map.put("message", r.getMessage());
+        }
         return map;
     }
 }

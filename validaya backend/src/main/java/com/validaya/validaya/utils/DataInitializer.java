@@ -114,11 +114,14 @@ public class DataInitializer implements CommandLineRunner {
                     .build();
             sucursalLaPaz = branchRepository.save(sucursalLaPaz);
 
-            // Create procedures with document requirements
+            // Get CI document type for output
+            DocumentType ciDocType = documentTypeRepository.findByCode("CI").orElse(null);
+
+            // Create procedures with document requirements and output document type
             Procedure primeraCI = createProcedure(segip, "Primera Cédula de Identidad",
-                    "primera-ci", new BigDecimal("30"), new BigDecimal("3"), 7);
+                    "primera-ci", new BigDecimal("30"), new BigDecimal("3"), 7, ciDocType);
             Procedure renovacionCI = createProcedure(segip, "Renovación de Cédula de Identidad",
-                    "renovacion-ci", new BigDecimal("50"), new BigDecimal("3"), 5);
+                    "renovacion-ci", new BigDecimal("50"), new BigDecimal("3"), 5, ciDocType);
 
             // Add document requirements for CI procedures
             DocumentType ci = documentTypeRepository.findByCode("CI").orElse(null);
@@ -169,22 +172,24 @@ public class DataInitializer implements CommandLineRunner {
                     .build();
             sucursalDowntown = branchRepository.save(sucursalDowntown);
 
-            // Create procedures with document requirements
-            Procedure certNacimiento = createProcedure(sereci, "Certificado de Nacimiento",
-                    "cert-nacimiento", new BigDecimal("20"), new BigDecimal("3"), 3);
-            Procedure certMatrimonio = createProcedure(sereci, "Certificado de Matrimonio",
-                    "cert-matrimonio", new BigDecimal("20"), new BigDecimal("3"), 3);
-
-            // Add document requirements
+            // Get output document types
             DocumentType birthCert = documentTypeRepository.findByCode("BIRTH_CERT").orElse(null);
             DocumentType marriageCert = documentTypeRepository.findByCode("MARRIAGE_CERT").orElse(null);
             DocumentType ci = documentTypeRepository.findByCode("CI").orElse(null);
+
+            // Create procedures with document requirements and output document type
+            Procedure certNacimiento = createProcedure(sereci, "Certificado de Nacimiento",
+                    "cert-nacimiento", new BigDecimal("20"), new BigDecimal("3"), 3, birthCert);
+            Procedure certMatrimonio = createProcedure(sereci, "Certificado de Matrimonio",
+                    "cert-matrimonio", new BigDecimal("20"), new BigDecimal("3"), 3, marriageCert);
+
+            // Add document requirements
 
             if (birthCert != null) {
                 procedureDocumentRequirementRepository.save(ProcedureDocumentRequirement.builder()
                         .procedure(certNacimiento)
                         .documentType(birthCert)
-                        .isMandatory(true)
+                        .isMandatory(false)
                         .maxAgeMonths(null)
                         .notes("Certificado de Nacimiento original")
                         .displayOrder(1)
@@ -194,7 +199,7 @@ public class DataInitializer implements CommandLineRunner {
                     procedureDocumentRequirementRepository.save(ProcedureDocumentRequirement.builder()
                             .procedure(certNacimiento)
                             .documentType(ci)
-                            .isMandatory(true)
+                            .isMandatory(false)
                             .maxAgeMonths(null)
                             .notes("Cédula de Identidad válida")
                             .displayOrder(2)
@@ -232,7 +237,8 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private Procedure createProcedure(Institution institution, String name, String code,
-                                 BigDecimal basePrice, BigDecimal platformFee, int estimatedDays) {
+                                 BigDecimal basePrice, BigDecimal platformFee, int estimatedDays,
+                                 DocumentType outputDocumentType) {
         if (procedureRepository.findByCode(code).isEmpty()) {
             Procedure procedure = Procedure.builder()
                     .institution(institution)
@@ -241,6 +247,7 @@ public class DataInitializer implements CommandLineRunner {
                     .basePrice(basePrice)
                     .platformFee(platformFee)
                     .estimatedDays(estimatedDays)
+                    .outputDocumentType(outputDocumentType)
                     .isActive(true)
                     .build();
             return procedureRepository.save(procedure);
