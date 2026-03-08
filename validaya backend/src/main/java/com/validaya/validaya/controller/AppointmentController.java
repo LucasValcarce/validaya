@@ -46,7 +46,7 @@ public class AppointmentController {
     }
 
     @PutMapping("/{id}/complete")
-    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    @PreAuthorize("hasAnyRole('admin','staff', 'institution_admin')")
     public ResponseEntity<ApiResponse<AppointmentDto.Response>> complete(
             @PathVariable Long id,
             @RequestParam(required = false) String staffNotes,

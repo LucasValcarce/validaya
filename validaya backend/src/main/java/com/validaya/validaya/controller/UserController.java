@@ -19,19 +19,19 @@ public class UserController {
     private final UserService userService;
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or #id == authentication.principal.id")
+    @PreAuthorize("hasRole('admin') or #id == authentication.principal.id")
     public ResponseEntity<ApiResponse<UserDto.Response>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(userService.getById(id)));
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('admin')")
     public ResponseEntity<ApiResponse<List<UserDto.Response>>> findAll() {
         return ResponseEntity.ok(ApiResponse.ok(userService.findAll()));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or #id == authentication.principal.id")
+    @PreAuthorize("hasRole('admin') or #id == authentication.principal.id")
     public ResponseEntity<ApiResponse<UserDto.Response>> update(
             @PathVariable Long id,
             @Valid @RequestBody UserDto.UpdateRequest request) {
@@ -48,7 +48,7 @@ public class UserController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('admin')")
     public ResponseEntity<ApiResponse<Void>> deactivate(@PathVariable Long id) {
         userService.deactivate(id);
         return ResponseEntity.ok(ApiResponse.ok("Usuario desactivado", null));

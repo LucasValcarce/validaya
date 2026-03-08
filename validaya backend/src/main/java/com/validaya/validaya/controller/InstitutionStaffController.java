@@ -21,7 +21,7 @@ public class InstitutionStaffController {
     private final InstitutionStaffService institutionStaffService;
 
     @PostMapping("/assign")
-    @PreAuthorize("hasAnyRole('ROLE_institution_admin', 'ROLE_admin')")
+    @PreAuthorize("hasAnyRole('admin', 'institution_admin')")
     public ResponseEntity<ApiResponse<InstitutionStaffDto.Response>> assign(
             @RequestBody InstitutionStaffDto.AssignRequest request) {
         InstitutionStaff staff = institutionStaffService.assign(
@@ -34,7 +34,7 @@ public class InstitutionStaffController {
     }
 
     @PutMapping("/{staffId}")
-    @PreAuthorize("hasAnyRole('ROLE_institution_admin', 'ROLE_admin')")
+    @PreAuthorize("hasAnyRole('admin', 'institution_admin')")
     public ResponseEntity<ApiResponse<InstitutionStaffDto.Response>> update(
             @PathVariable Long staffId,
             @RequestBody InstitutionStaffDto.UpdateRequest request) {
@@ -47,7 +47,7 @@ public class InstitutionStaffController {
     }
 
     @GetMapping("/institution/{institutionId}")
-    @PreAuthorize("hasAnyRole('ROLE_institution_admin', 'ROLE_staff', 'ROLE_admin')")
+    @PreAuthorize("hasAnyRole('admin', 'staff', 'institution_admin')")
     public ResponseEntity<ApiResponse<List<InstitutionStaffDto.Response>>> listByInstitution(
             @PathVariable Long institutionId) {
         List<InstitutionStaff> staffList = institutionStaffService.findByInstitution(institutionId);
@@ -58,7 +58,7 @@ public class InstitutionStaffController {
     }
 
     @GetMapping("/{staffId}")
-    @PreAuthorize("hasAnyRole('ROLE_institution_admin', 'ROLE_staff', 'ROLE_admin')")
+    @PreAuthorize("hasAnyRole('admin', 'institution_admin')")
     public ResponseEntity<ApiResponse<InstitutionStaffDto.Response>> getById(
             @PathVariable Long staffId) {
         InstitutionStaff staff = institutionStaffService.findById(staffId)
@@ -67,7 +67,7 @@ public class InstitutionStaffController {
     }
 
     @DeleteMapping("/{staffId}")
-    @PreAuthorize("hasAnyRole('ROLE_institution_admin', 'ROLE_admin')")
+    @PreAuthorize("hasAnyRole('admin', 'institution_admin')")
     public ResponseEntity<ApiResponse<Void>> deactivate(
             @PathVariable Long staffId) {
         institutionStaffService.deactivate(staffId);
