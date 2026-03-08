@@ -20,7 +20,7 @@ public class AuthController {
     /**
      * Paso 1: Verificar que el usuario existe por su carnet de identidad.
      */
-    @PostMapping("/identify")
+    @GetMapping("/identify")
     public ResponseEntity<ApiResponse<AuthDto.IdentifyResponse>> identify(
             @Valid @RequestBody AuthDto.IdentifyRequest request) {
         AuthDto.IdentifyResponse response = authService.identify(request.getIdentification());
@@ -36,7 +36,7 @@ public class AuthController {
      * Paso 2: Verificar rostro del usuario.
      * Si el rostro coincide, retorna un JWT temporal para establecer contraseña.
      */
-    @PostMapping("/verify-face")
+    @GetMapping("/verify-face")
     public ResponseEntity<ApiResponse<AuthDto.FaceVerificationResponse>> verifyFace(
             @Valid @RequestBody AuthDto.VerifyFaceRequest request) {
         AuthDto.FaceVerificationResponse response = authService.verifyFace(
@@ -54,7 +54,7 @@ public class AuthController {
     /**
      * Paso 3: Establecer contraseña (requiere JWT válido obtenido de verifyFace).
      */
-    @PostMapping("/set-password")
+    @PutMapping("/set-password")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<AuthDto.AuthResponse>> setPassword(
             @Valid @RequestBody AuthDto.SetPasswordRequest request) {
@@ -63,10 +63,6 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.ok("Contraseña establecida correctamente", response));
     }
 
-    /**
-     * Login tradicional con identificación y contraseña.
-     * Se usa después de que el usuario ha establecido su contraseña.
-     */
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthDto.AuthResponse>> login(
             @Valid @RequestBody AuthDto.LoginRequest request) {
@@ -82,9 +78,6 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.ok("Sesión cerrada", null));
     }
 
-    /**
-     * Método auxiliar para obtener el ID del usuario del JWT actual.
-     */
     private Long getCurrentUserId() {
         org.springframework.security.core.Authentication auth =
             org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();

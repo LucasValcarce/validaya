@@ -75,20 +75,4 @@ public class AuthDto {
         @NotBlank
         private String password;
     }
-
-    /**
-     * Registro legacy (deshabilitado, pero mantenido para compatibilidad)
-     */
-    @Data
-    public static class RegisterRequest {
-        @NotBlank
-        private String email;
-        @NotBlank @Size(min = 8)
-        private String password;
-        @NotBlank
-        private String fullName;
-        @NotBlank
-        private String identification;
-        private String phone;
-    }
 }
