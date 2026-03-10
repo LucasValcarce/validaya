@@ -4,9 +4,13 @@ import com.validaya.validaya.entity.dto.AuthDto;
 
 public interface AuthService {
 
-    AuthDto.AuthResponse login(AuthDto.LoginRequest request);
+    AuthDto.IdentifyResponse identify(String identification);
 
-    AuthDto.AuthResponse register(AuthDto.RegisterRequest request);
+    AuthDto.FaceVerificationResponse verifyFace(String identification, String faceBase64);
+
+    AuthDto.AuthResponse setPassword(Long userId, String password);
+
+    AuthDto.AuthResponse login(AuthDto.LoginRequest request);
 
     void logout(String token);
 }

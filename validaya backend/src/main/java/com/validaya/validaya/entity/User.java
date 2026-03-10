@@ -45,15 +45,6 @@ public class User {
     @Column(name = "user_type", nullable = false)
     private UserType userType;
 
-    /**
-     * Vector de embeddings faciales (128 o 512 floats).
-     * Almacenado como JSON. Con PostgreSQL + pgvector se puede cambiar a VECTOR.
-     * Debe cifrarse en reposo (AES-256) a nivel de aplicación antes de persistir.
-     */
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "face_vector", columnDefinition = "jsonb")
-    private List<Double> faceVector;
-
     @Column(name = "face_registered_at")
     private LocalDateTime faceRegisteredAt;
 
@@ -77,9 +68,6 @@ public class User {
 
     @Column(name = "enrollment_status", length = 32)
     private String enrollmentStatus; // pending, verified, rejected
-
-    @Column(name = "identity_verified")
-    private Boolean identityVerified = false;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

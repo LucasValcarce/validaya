@@ -34,14 +34,14 @@ public class InstitutionController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('admin')")
     public ResponseEntity<ApiResponse<InstitutionDto.Response>> create(
             @Valid @RequestBody InstitutionDto.CreateRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(institutionService.create(request)));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('admin')")
     public ResponseEntity<ApiResponse<InstitutionDto.Response>> update(
             @PathVariable Long id,
             @Valid @RequestBody InstitutionDto.CreateRequest request) {
@@ -49,7 +49,7 @@ public class InstitutionController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('admin')")
     public ResponseEntity<ApiResponse<Void>> deactivate(@PathVariable Long id) {
         institutionService.deactivate(id);
         return ResponseEntity.ok(ApiResponse.ok("Institución desactivada", null));

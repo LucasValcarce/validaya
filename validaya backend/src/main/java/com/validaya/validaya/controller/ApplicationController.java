@@ -43,47 +43,9 @@ public class ApplicationController {
     }
 
     @GetMapping("/institution/{institutionId}")
-    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    @PreAuthorize("hasAnyRole('admin','staff', 'institution_admin')")
     public ResponseEntity<ApiResponse<List<ApplicationDto.Summary>>> findByInstitution(
             @PathVariable Long institutionId) {
         return ResponseEntity.ok(ApiResponse.ok(applicationService.findByInstitution(institutionId)));
-    }
-
-    @PostMapping("/{id}/submit")
-    public ResponseEntity<ApiResponse<ApplicationDto.Response>> submitDocuments(@PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.ok(applicationService.submitDocuments(id)));
-    }
-
-    @PostMapping("/{id}/review")
-    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
-    public ResponseEntity<ApiResponse<ApplicationDto.Response>> review(
-            @PathVariable Long id,
-            @Valid @RequestBody ApplicationDto.ReviewRequest request,
-            @RequestParam Long staffId) {
-        return ResponseEntity.ok(ApiResponse.ok(applicationService.review(id, request, staffId)));
-    }
-
-    @PostMapping("/{id}/cancel")
-    public ResponseEntity<ApiResponse<Void>> cancel(
-            @PathVariable Long id,
-            @RequestParam Long userId) {
-        applicationService.cancel(id, userId);
-        return ResponseEntity.ok(ApiResponse.ok("Solicitud cancelada", null));
-    }
-
-    // ── Documentos de solicitud ─────────────────────────────────────────
-    @PostMapping("/documents")
-    public ResponseEntity<ApiResponse<ApplicationDocumentDto.Response>> addDocument(
-            @Valid @RequestBody ApplicationDocumentDto.SubmitRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok(applicationService.addDocument(request)));
-    }
-
-    @PutMapping("/documents/{docId}/review")
-    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
-    public ResponseEntity<ApiResponse<ApplicationDocumentDto.Response>> reviewDocument(
-            @PathVariable Long docId,
-            @Valid @RequestBody ApplicationDocumentDto.ReviewRequest request,
-            @RequestParam Long staffId) {
-        return ResponseEntity.ok(ApiResponse.ok(applicationService.reviewDocument(docId, request, staffId)));
     }
 }

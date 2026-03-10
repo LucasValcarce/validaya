@@ -10,6 +10,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalTime;
 
 @Slf4j
 @Component
@@ -21,12 +24,15 @@ public class DataInitializer implements CommandLineRunner {
     private final DocumentTypeRepository documentTypeRepository;
     private final ProcedureRepository procedureRepository;
     private final BranchRepository branchRepository;
+    private final ProcedureDocumentRequirementRepository procedureDocumentRequirementRepository;
+    private final AppointmentSlotRepository appointmentSlotRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
     public void run(String... args) {
         log.info("Inicializando datos base...");
         initAdminUser();
+        initTestUser();
         initDocumentTypes();
         initInstitutions();
         log.info("Datos base inicializados correctamente.");
@@ -45,6 +51,22 @@ public class DataInitializer implements CommandLineRunner {
                     .build();
             userRepository.save(admin);
             log.info("Usuario admin creado: admin@validaya.com");
+        }
+    }
+
+    private void initTestUser() {
+        if (!userRepository.existsByEmail("testuser@validaya.com")) {
+            User testUser = User.builder()
+                    .email("testuser@validaya.com")
+                    .passwordHash(passwordEncoder.encode("testpass123"))
+                    .fullName("Juan Pérez García")
+                    .identification("1234567")
+                    .userType(UserType.citizen)
+                    .isActive(true)
+                    .faceVerified(false)
+                    .build();
+            userRepository.save(testUser);
+            log.info("Usuario de prueba creado: testuser@validaya.com (ID: 1234567)");
         }
     }
 
@@ -90,14 +112,43 @@ public class DataInitializer implements CommandLineRunner {
                     .maxDailyAppointments(50)
                     .isActive(true)
                     .build();
-            branchRepository.save(sucursalLaPaz);
+            sucursalLaPaz = branchRepository.save(sucursalLaPaz);
 
-            createProcedure(segip, "Renovación de Cédula de Identidad",
-                    "renovacion-ci", new BigDecimal("50"), new BigDecimal("3"), 5);
-            createProcedure(segip, "Primera Cédula de Identidad",
-                    "primera-ci", new BigDecimal("30"), new BigDecimal("3"), 7);
+            // Get CI document type for output
+            DocumentType ciDocType = documentTypeRepository.findByCode("CI").orElse(null);
 
-            log.info("Institución SEGIP creada con sucursal y trámites");
+            // Create procedures with document requirements and output document type
+            Procedure primeraCI = createProcedure(segip, "Primera Cédula de Identidad",
+                    "primera-ci", new BigDecimal("30"), new BigDecimal("3"), 7, ciDocType);
+            Procedure renovacionCI = createProcedure(segip, "Renovación de Cédula de Identidad",
+                    "renovacion-ci", new BigDecimal("50"), new BigDecimal("3"), 5, ciDocType);
+
+            // Add document requirements for CI procedures
+            DocumentType ci = documentTypeRepository.findByCode("CI").orElse(null);
+            if (ci != null) {
+                procedureDocumentRequirementRepository.save(ProcedureDocumentRequirement.builder()
+                        .procedure(primeraCI)
+                        .documentType(ci)
+                        .isMandatory(true)
+                        .maxAgeMonths(null)
+                        .notes("Cédula de Identidad original y copia")
+                        .displayOrder(1)
+                        .build());
+
+                procedureDocumentRequirementRepository.save(ProcedureDocumentRequirement.builder()
+                        .procedure(renovacionCI)
+                        .documentType(ci)
+                        .isMandatory(true)
+                        .maxAgeMonths(null)
+                        .notes("Cédula de Identidad vencida")
+                        .displayOrder(1)
+                        .build());
+            }
+
+            // Create appointment slots for next 30 days
+            createAppointmentSlots(sucursalLaPaz, 30);
+
+            log.info("Institución SEGIP creada con sucursal, trámites y slots de citas");
         }
 
         if (institutionRepository.findBySlug("sereci").isEmpty()) {
@@ -111,17 +162,83 @@ public class DataInitializer implements CommandLineRunner {
                     .build();
             sereci = institutionRepository.save(sereci);
 
-            createProcedure(sereci, "Certificado de Nacimiento",
-                    "cert-nacimiento", new BigDecimal("20"), new BigDecimal("3"), 3);
-            createProcedure(sereci, "Certificado de Matrimonio",
-                    "cert-matrimonio", new BigDecimal("20"), new BigDecimal("3"), 3);
+            Branch sucursalDowntown = Branch.builder()
+                    .institution(sereci)
+                    .name("Sucursal Centro")
+                    .address("Avenida Camacho esquina Ecuador, La Paz")
+                    .city("La Paz")
+                    .maxDailyAppointments(40)
+                    .isActive(true)
+                    .build();
+            sucursalDowntown = branchRepository.save(sucursalDowntown);
 
-            log.info("Institución SERECI creada");
+            // Get output document types
+            DocumentType birthCert = documentTypeRepository.findByCode("BIRTH_CERT").orElse(null);
+            DocumentType marriageCert = documentTypeRepository.findByCode("MARRIAGE_CERT").orElse(null);
+            DocumentType ci = documentTypeRepository.findByCode("CI").orElse(null);
+
+            // Create procedures with document requirements and output document type
+            Procedure certNacimiento = createProcedure(sereci, "Certificado de Nacimiento",
+                    "cert-nacimiento", new BigDecimal("20"), new BigDecimal("3"), 3, birthCert);
+            Procedure certMatrimonio = createProcedure(sereci, "Certificado de Matrimonio",
+                    "cert-matrimonio", new BigDecimal("20"), new BigDecimal("3"), 3, marriageCert);
+
+            // Add document requirements
+
+            if (birthCert != null) {
+                procedureDocumentRequirementRepository.save(ProcedureDocumentRequirement.builder()
+                        .procedure(certNacimiento)
+                        .documentType(birthCert)
+                        .isMandatory(false)
+                        .maxAgeMonths(null)
+                        .notes("Certificado de Nacimiento original")
+                        .displayOrder(1)
+                        .build());
+
+                if (ci != null) {
+                    procedureDocumentRequirementRepository.save(ProcedureDocumentRequirement.builder()
+                            .procedure(certNacimiento)
+                            .documentType(ci)
+                            .isMandatory(false)
+                            .maxAgeMonths(null)
+                            .notes("Cédula de Identidad válida")
+                            .displayOrder(2)
+                            .build());
+                }
+            }
+
+            if (marriageCert != null) {
+                procedureDocumentRequirementRepository.save(ProcedureDocumentRequirement.builder()
+                        .procedure(certMatrimonio)
+                        .documentType(marriageCert)
+                        .isMandatory(true)
+                        .maxAgeMonths(null)
+                        .notes("Certificado de Matrimonio original")
+                        .displayOrder(1)
+                        .build());
+
+                if (ci != null) {
+                    procedureDocumentRequirementRepository.save(ProcedureDocumentRequirement.builder()
+                            .procedure(certMatrimonio)
+                            .documentType(ci)
+                            .isMandatory(true)
+                            .maxAgeMonths(null)
+                            .notes("Cédula de Identidad válida")
+                            .displayOrder(2)
+                            .build());
+                }
+            }
+
+            // Create appointment slots for next 30 days
+            createAppointmentSlots(sucursalDowntown, 30);
+
+            log.info("Institución SERECI creada con sucursal, trámites y slots de citas");
         }
     }
 
-    private void createProcedure(Institution institution, String name, String code,
-                                 BigDecimal basePrice, BigDecimal platformFee, int estimatedDays) {
+    private Procedure createProcedure(Institution institution, String name, String code,
+                                 BigDecimal basePrice, BigDecimal platformFee, int estimatedDays,
+                                 DocumentType outputDocumentType) {
         if (procedureRepository.findByCode(code).isEmpty()) {
             Procedure procedure = Procedure.builder()
                     .institution(institution)
@@ -130,9 +247,51 @@ public class DataInitializer implements CommandLineRunner {
                     .basePrice(basePrice)
                     .platformFee(platformFee)
                     .estimatedDays(estimatedDays)
+                    .outputDocumentType(outputDocumentType)
                     .isActive(true)
                     .build();
-            procedureRepository.save(procedure);
+            return procedureRepository.save(procedure);
         }
+        return procedureRepository.findByCode(code).orElse(null);
+    }
+
+    private void createAppointmentSlots(Branch branch, int days) {
+        LocalDate startDate = LocalDate.now().plusDays(1);
+        LocalTime[] slotTimes = {
+                LocalTime.of(8, 0),
+                LocalTime.of(8, 30),
+                LocalTime.of(9, 0),
+                LocalTime.of(9, 30),
+                LocalTime.of(10, 0),
+                LocalTime.of(10, 30),
+                LocalTime.of(14, 0),
+                LocalTime.of(14, 30),
+                LocalTime.of(15, 0),
+                LocalTime.of(15, 30),
+        };
+
+        for (int i = 0; i < days; i++) {
+            LocalDate slotDate = startDate.plusDays(i);
+            // Skip weekends
+            if (slotDate.getDayOfWeek() == DayOfWeek.SATURDAY ||
+                    slotDate.getDayOfWeek() == DayOfWeek.SUNDAY) {
+                continue;
+            }
+
+            for (LocalTime slotTime : slotTimes) {
+                if (appointmentSlotRepository.findByBranchIdAndSlotDateAndSlotTime(
+                        branch.getId(), slotDate, slotTime).isEmpty()) {
+                    appointmentSlotRepository.save(AppointmentSlot.builder()
+                            .branch(branch)
+                            .slotDate(slotDate)
+                            .slotTime(slotTime)
+                            .maxCapacity(5)
+                            .reservedCount(0)
+                            .isBlocked(false)
+                            .build());
+                }
+            }
+        }
+        log.info("Slots de cita creados para la sucursal: {}", branch.getName());
     }
 }
