@@ -40,14 +40,14 @@ public class ProcedureController {
     }
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('admin')")
     public ResponseEntity<ApiResponse<ProcedureDto.Response>> create(
             @Valid @RequestBody ProcedureDto.CreateRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(procedureService.create(request)));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('admin')")
     public ResponseEntity<ApiResponse<ProcedureDto.Response>> update(
             @PathVariable Long id,
             @Valid @RequestBody ProcedureDto.CreateRequest request) {
@@ -55,7 +55,7 @@ public class ProcedureController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('admin')")
     public ResponseEntity<ApiResponse<Void>> deactivate(@PathVariable Long id) {
         procedureService.deactivate(id);
         return ResponseEntity.ok(ApiResponse.ok("Trámite desactivado", null));

@@ -10,7 +10,6 @@ public interface TicketService {
 
     TicketDto.Response getByApplication(Long applicationId);
 
-    /** Genera un ticket tras pago confirmado */
     TicketDto.Response generateForApplication(Long applicationId);
 
     void expireOverdue();

@@ -207,7 +207,12 @@ public class MapperUtil {
         dto.setStatus(payment.getPaymentStatus());
         dto.setPaidAt(payment.getPaidAt());
         dto.setCreatedAt(payment.getCreatedAt());
-        dto.setGatewayUrl(null);
+        
+        // Extraer URL de pago desde la respuesta del gateway
+        if (payment.getGatewayResponse() != null && payment.getGatewayResponse().containsKey("payment_url")) {
+            dto.setGatewayUrl((String) payment.getGatewayResponse().get("payment_url"));
+        }
+        
         return dto;
     }
 

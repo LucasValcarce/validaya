@@ -20,12 +20,8 @@ public class InstitutionStaffController {
 
     private final InstitutionStaffService institutionStaffService;
 
-    /**
-     * Asigna un ciudadano como staff o admin de una institución.
-     * Solo institution_admin o admin pueden hacer esto.
-     */
     @PostMapping("/assign")
-    @PreAuthorize("hasAnyRole('ROLE_institution_admin', 'ROLE_admin')")
+    @PreAuthorize("hasAnyRole('admin', 'institution_admin')")
     public ResponseEntity<ApiResponse<InstitutionStaffDto.Response>> assign(
             @RequestBody InstitutionStaffDto.AssignRequest request) {
         InstitutionStaff staff = institutionStaffService.assign(
@@ -37,12 +33,8 @@ public class InstitutionStaffController {
         return ResponseEntity.ok(ApiResponse.ok("Staff asignado correctamente", toResponse(staff)));
     }
 
-    /**
-     * Actualiza tipo de staff (admin/staff) y sucursal.
-     * Solo institution_admin o admin pueden hacer esto.
-     */
     @PutMapping("/{staffId}")
-    @PreAuthorize("hasAnyRole('ROLE_institution_admin', 'ROLE_admin')")
+    @PreAuthorize("hasAnyRole('admin', 'institution_admin')")
     public ResponseEntity<ApiResponse<InstitutionStaffDto.Response>> update(
             @PathVariable Long staffId,
             @RequestBody InstitutionStaffDto.UpdateRequest request) {
@@ -54,11 +46,8 @@ public class InstitutionStaffController {
         return ResponseEntity.ok(ApiResponse.ok("Staff actualizado", toResponse(staff)));
     }
 
-    /**
-     * Lista el staff de una institución.
-     */
     @GetMapping("/institution/{institutionId}")
-    @PreAuthorize("hasAnyRole('ROLE_institution_admin', 'ROLE_staff', 'ROLE_admin')")
+    @PreAuthorize("hasAnyRole('admin', 'staff', 'institution_admin')")
     public ResponseEntity<ApiResponse<List<InstitutionStaffDto.Response>>> listByInstitution(
             @PathVariable Long institutionId) {
         List<InstitutionStaff> staffList = institutionStaffService.findByInstitution(institutionId);
@@ -68,11 +57,8 @@ public class InstitutionStaffController {
         return ResponseEntity.ok(ApiResponse.ok(responses));
     }
 
-    /**
-     * Obtiene los detalles de un staff específico.
-     */
     @GetMapping("/{staffId}")
-    @PreAuthorize("hasAnyRole('ROLE_institution_admin', 'ROLE_staff', 'ROLE_admin')")
+    @PreAuthorize("hasAnyRole('admin', 'institution_admin')")
     public ResponseEntity<ApiResponse<InstitutionStaffDto.Response>> getById(
             @PathVariable Long staffId) {
         InstitutionStaff staff = institutionStaffService.findById(staffId)
@@ -80,12 +66,8 @@ public class InstitutionStaffController {
         return ResponseEntity.ok(ApiResponse.ok(toResponse(staff)));
     }
 
-    /**
-     * Desactiva un staff y lo convierte de vuelta a ciudadano.
-     * Solo institution_admin o admin pueden hacer esto.
-     */
     @DeleteMapping("/{staffId}")
-    @PreAuthorize("hasAnyRole('ROLE_institution_admin', 'ROLE_admin')")
+    @PreAuthorize("hasAnyRole('admin', 'institution_admin')")
     public ResponseEntity<ApiResponse<Void>> deactivate(
             @PathVariable Long staffId) {
         institutionStaffService.deactivate(staffId);

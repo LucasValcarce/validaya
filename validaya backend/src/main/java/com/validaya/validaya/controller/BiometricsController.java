@@ -16,7 +16,7 @@ public class BiometricsController {
 
     private final BiometricsService biometricsService;
 
-    @PostMapping("/enroll/init")
+    @PostMapping("/enroll/login")
     public ResponseEntity<ApiResponse<String>> enrollInit(@RequestBody EnrollInitRequest req) {
         String session = biometricsService.initEnrollment(req.getIdentification(), req.getFullName());
         return ResponseEntity.ok(ApiResponse.ok("Enrollment session created", session));

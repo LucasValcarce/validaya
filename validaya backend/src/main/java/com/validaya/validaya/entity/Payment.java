@@ -24,7 +24,6 @@ public class Payment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Relación 1:1 — una solicitud tiene un único pago. */
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "application_id", nullable = false, unique = true)
     private Application application;
@@ -52,21 +51,42 @@ public class Payment {
     @Column(length = 100)
     private String gateway;
 
-    /**
-     * Respuesta completa del gateway de pago para fines de auditoría y disputas.
-     */
+    @Column(name = "idempotency_key", length = 255, unique = true)
+    private String idempotencyKey;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "gateway_response", columnDefinition = "jsonb")
     private Map<String, Object> gatewayResponse;
 
+    @Column(name = "qr_code_base64", columnDefinition = "TEXT")
+    private String qrCodeBase64;
+
+    @Column(name = "payment_link", length = 500)
+    private String paymentLink;
+
+    @Column(name = "last_error", columnDefinition = "TEXT")
+    private String lastError;
+
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
+
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
     }
 }

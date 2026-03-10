@@ -1,5 +1,6 @@
-package com.validaya.validaya.crypto;
+package com.validaya.validaya.utils;
 
+import com.validaya.validaya.crypto.CipherSuite;
 import lombok.extern.slf4j.Slf4j;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,18 +12,20 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
-import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
 
+/**
+ * Utility class for RSA encryption operations.
+ * Used for encrypting passwords before sending to Stereum Pay API.
+ */
 @Slf4j
 @Component
-public class CryptoRSA {
-
-    @Value("${validaya.public-key:}")
+public class RsaEncryptionUtil {
+    @Value("${stereum.public-key}")
     private String publicKey;
 
-    public CryptoRSA() {
+    public RsaEncryptionUtil() {
         Security.addProvider(new BouncyCastleProvider());
     }
 

@@ -45,8 +45,8 @@ public class AppointmentController {
                 appointmentService.getAvailableSlots(branchId, startDate, endDate)));
     }
 
-    @PostMapping("/{id}/complete")
-    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    @PutMapping("/{id}/complete")
+    @PreAuthorize("hasAnyRole('admin','staff', 'institution_admin')")
     public ResponseEntity<ApiResponse<AppointmentDto.Response>> complete(
             @PathVariable Long id,
             @RequestParam(required = false) String staffNotes,
@@ -54,7 +54,7 @@ public class AppointmentController {
         return ResponseEntity.ok(ApiResponse.ok(appointmentService.complete(id, staffNotes, staffId)));
     }
 
-    @PostMapping("/{id}/cancel")
+    @PutMapping("/{id}/cancel")
     public ResponseEntity<ApiResponse<AppointmentDto.Response>> cancel(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(appointmentService.cancel(id)));
     }

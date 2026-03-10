@@ -43,7 +43,7 @@ public class ApplicationController {
     }
 
     @GetMapping("/institution/{institutionId}")
-    @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
+    @PreAuthorize("hasAnyRole('admin','staff', 'institution_admin')")
     public ResponseEntity<ApiResponse<List<ApplicationDto.Summary>>> findByInstitution(
             @PathVariable Long institutionId) {
         return ResponseEntity.ok(ApiResponse.ok(applicationService.findByInstitution(institutionId)));
