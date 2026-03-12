@@ -6,6 +6,7 @@ import Tramites from './pages/Tramites'
 import TramiteFlow from './pages/TramiteFlow'
 import Historial from './pages/Historial'
 import Tickets from './pages/Tickets'
+import Perfil from './pages/Perfil'
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="/docs"   element={<Docs />} />
         <Route path="/historial" element={<Historial />} />
         <Route path="/tickets" element={<Tickets />} />
+        <Route path="/perfil" element={<Perfil />} />
         <Route path="/tramites" element={<Tramites />} />
         <Route path="/tramite-flow" element={<TramiteFlow />} />
       </Routes>
