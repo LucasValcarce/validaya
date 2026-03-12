@@ -4,6 +4,12 @@ import Home  from './pages/Home'
 import Docs  from './pages/Docs'
 import Tramites from './pages/Tramites'
 import TramiteFlow from './pages/TramiteFlow'
+import { getToken } from './services/authService'
+
+
+function PrivateRoute({ children }) {
+  return getToken() ? children : <Navigate to="/login" replace />
+}
 
 export default function App() {
   return (
