@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Login from './pages/Login'
 import Home  from './pages/Home'
 import Docs  from './pages/Docs'
+import Tramites from './pages/Tramites'
+import TramiteFlow from './pages/TramiteFlow'
 
 export default function App() {
   return (
@@ -11,6 +13,8 @@ export default function App() {
         <Route path="/login"  element={<Login />} />
         <Route path="/home"   element={<Home />} />
         <Route path="/docs"  element={<Docs />} />
+        <Route path="/tramites" element={<Tramites />} />
+        <Route path="/tramite-flow" element={<TramiteFlow />} />
       </Routes>
     </BrowserRouter>
   )
