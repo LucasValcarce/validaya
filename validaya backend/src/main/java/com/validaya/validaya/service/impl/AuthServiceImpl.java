@@ -210,14 +210,4 @@ public class AuthServiceImpl implements AuthService {
     public void logout(String token) {
         log.info("Logout solicitado");
     }
-
-    private String sha256(byte[] data) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] digest = md.digest(data);
-            return Base64.getEncoder().encodeToString(digest);
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
-    }
 }

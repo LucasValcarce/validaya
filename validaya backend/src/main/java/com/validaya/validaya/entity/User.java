@@ -63,7 +63,7 @@ public class User {
     @Column(name = "face_vector_encrypted", columnDefinition = "bytea")
     private byte[] faceVectorEncrypted;
 
-    @Column(name = "face_hash", length = 255)
+    @Column(name = "face_hash", columnDefinition = "TEXT")
     private String faceHash;
 
     @Column(name = "enrollment_status", length = 32)
