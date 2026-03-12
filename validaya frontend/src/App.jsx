@@ -4,6 +4,8 @@ import Home  from './pages/Home'
 import Docs  from './pages/Docs'
 import Tramites from './pages/Tramites'
 import TramiteFlow from './pages/TramiteFlow'
+import Historial from './pages/Historial'
+import Tickets from './pages/Tickets'
 import { getToken } from './services/authService'
 
 
@@ -18,7 +20,9 @@ export default function App() {
         <Route path="/"       element={<Navigate to="/login" replace />} />
         <Route path="/login"  element={<Login />} />
         <Route path="/home"   element={<Home />} />
-        <Route path="/docs"  element={<Docs />} />
+        <Route path="/docs"   element={<Docs />} />
+        <Route path="/historial" element={<Historial />} />
+        <Route path="/tickets" element={<Tickets />} />
         <Route path="/tramites" element={<Tramites />} />
         <Route path="/tramite-flow" element={<TramiteFlow />} />
       </Routes>

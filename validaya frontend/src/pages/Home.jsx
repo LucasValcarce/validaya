@@ -74,7 +74,10 @@ export default function Home() {
           <span className="text-2xl">🎫</span>
           <span className="text-sm font-bold text-navy">Mis tickets</span>
         </button>
-        <button className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col gap-2 text-left hover:border-gray-300 transition-colors active:scale-95">
+        <button
+          onClick={() => navigate('/historial')}
+          className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col gap-2 text-left hover:border-gray-300 transition-colors active:scale-95"
+        >
           <span className="text-2xl">🕐</span>
           <span className="text-sm font-bold text-navy">Historial</span>
         </button>
