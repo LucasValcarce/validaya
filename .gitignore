@@ -1,0 +1,17 @@
+# ─── Base de datos de rostros (datos biométricos) ───
+face_db/
+
+# ─── Python ───
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.env
+
+# ─── Logs ───
+*.log
+
+# ─── IDEs ───
+.idea/
+.vscode/
+*.iml

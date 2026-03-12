@@ -6,48 +6,27 @@ import lombok.Data;
 
 public class AuthDto {
 
-    /**
-     * Paso 1: Verificar que el usuario existe por su carnet de identidad
-     */
     @Data
     public static class IdentifyRequest {
         @NotBlank
-        private String identification; // Carnet de identidad
+        private String identification;
+        @NotBlank
+        private String faceBase64;
     }
 
     @Data
     public static class IdentifyResponse {
-        private boolean exists; // true si el usuario existe
-        private Long userId;
-        private String fullName;
-        private String message; // "Usuario encontrado" o "Usuario no encontrado"
-    }
-
-    /**
-     * Paso 2: Verificar rostro (face recognition)
-     */
-    @Data
-    public static class VerifyFaceRequest {
-        @NotBlank
-        private String identification;
-        @NotBlank
-        private String faceBase64; // Vector facial en base64
-    }
-
-    @Data
-    public static class FaceVerificationResponse {
-        private boolean verified; // true si el rostro coincide
-        private String token; // JWT temporal (válido para establecer contraseña)
+        private boolean exists;        // true si el usuario existe
+        private boolean verified;      // true si el rostro coincide
+        private String token;          // JWT temporal (válido para establecer contraseña)
         private Long userId;
         private String email;
         private String fullName;
         private String userType;
-        private String message;
+        private double confidence;     // Confianza de la verificación facial
+        private String message;        // Mensaje descriptivo del resultado
     }
 
-    /**
-     * Paso 3: Establecer contraseña (solo después de verificar cara)
-     */
     @Data
     public static class SetPasswordRequest {
         @NotBlank @Size(min = 8)
@@ -66,13 +45,16 @@ public class AuthDto {
     }
 
     /**
-     * Login tradicional (legacy, puede usarse con contraseña después de ser establecida)
+     * Login mejorado: CI + contraseña + fotografía del rostro
+     * Verifica primero contraseña en BD, luego verifica rostro con modelado facial
      */
     @Data
     public static class LoginRequest {
         @NotBlank
-        private String identification;
+        private String identification;  // Carnet de identidad (CI)
         @NotBlank
-        private String password;
+        private String password;        // Contraseña
+        @NotBlank
+        private String faceBase64;      // Imagen del rostro en Base64
     }
 }

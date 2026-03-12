@@ -6,7 +6,6 @@ import com.validaya.validaya.entity.Payment;
 import com.validaya.validaya.entity.User;
 import com.validaya.validaya.entity.dto.PaymentDto;
 import com.validaya.validaya.entity.enums.ApplicationStatus;
-import com.validaya.validaya.entity.enums.PaymentMethod;
 import com.validaya.validaya.entity.enums.PaymentStatus;
 import com.validaya.validaya.integracion.SterumPayService;
 import com.validaya.validaya.integracion.impl.dtos.*;
@@ -35,11 +34,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Service implementation for payment processing.
- * Handles payment creation, verification, and webhook callbacks.
- * Integrates with Stereum Pay API for payment processing.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -120,7 +114,7 @@ public class PaymentServiceImpl implements PaymentService {
                     .country(sterumPayProperties.getDefaultCountry())
                     .amount(totalAmount.toPlainString())
                     .network(sterumPayProperties.getDefaultNetwork())
-                    .currency(sterumPayProperties.getDefaultBlockchainCurrency())
+                    .currency(sterumPayProperties.getDefaultCurrency())
                     .idempotencyKey(idempotencyKey)
                     .chargeReason("Pago de solicitud APP-" + app.getId())
                     .customer(customer)

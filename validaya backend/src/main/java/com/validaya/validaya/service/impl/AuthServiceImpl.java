@@ -5,6 +5,8 @@ import com.validaya.validaya.config.security.UserPrincipal;
 import com.validaya.validaya.entity.User;
 import com.validaya.validaya.entity.dto.AuthDto;
 import com.validaya.validaya.entity.enums.UserType;
+import com.validaya.validaya.integracion.FacialRecognitionService;
+import com.validaya.validaya.integracion.dtos.FacialVerifyResponse;
 import com.validaya.validaya.repository.UserRepository;
 import com.validaya.validaya.service.AuthService;
 import lombok.RequiredArgsConstructor;
@@ -31,74 +33,82 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider jwtTokenProvider;
+    private final FacialRecognitionService facialRecognitionService;
 
+    /**
+     * PASO 1: Verificar identidad (CI + rostro)
+     * 
+     * Flujo:
+     * 1. Buscar usuario por CI
+     * 2. Llamar al servicio de modelado facial para verificar que el rostro coincide
+     * 3. Si el rostro coincide, generar JWT temporal para establecer contraseña
+     */
     @Override
-    public AuthDto.IdentifyResponse identify(String identification) {
-        User user = userRepository.findByIdentification(identification).orElse(null);
-        
+    public AuthDto.IdentifyResponse identify(String identification, String faceBase64) {
         AuthDto.IdentifyResponse response = new AuthDto.IdentifyResponse();
-        if (user != null) {
-            response.setExists(true);
-            response.setUserId(user.getId());
-            response.setFullName(user.getFullName());
-            response.setMessage("Usuario encontrado");
-        } else {
-            response.setExists(false);
-            response.setMessage("Usuario no encontrado");
-        }
-        return response;
-    }
-
-    @Override
-    public AuthDto.FaceVerificationResponse verifyFace(String identification, String faceBase64) {
-        User user = userRepository.findByIdentification(identification).orElse(null);
         
-        AuthDto.FaceVerificationResponse response = new AuthDto.FaceVerificationResponse();
+        // Paso 1: Verificar que el usuario existe
+        User user = userRepository.findByIdentification(identification).orElse(null);
         
         if (user == null) {
+            response.setExists(false);
             response.setVerified(false);
             response.setMessage("Usuario no encontrado");
+            log.warn("Intento de identificación con CI inexistente: {}", identification);
             return response;
         }
-
-        // Verificar que el usuario tiene cara registrada
-        if (user.getFaceHash() == null || !Boolean.TRUE.equals(user.getFaceVerified())) {
-            response.setVerified(false);
-            response.setMessage("El usuario no tiene rostro registrado o no ha completado el enrollment");
-            return response;
-        }
-
-        // Comparar el hash del rostro enviado con el almacenado
+        
+        response.setExists(true);
+        response.setUserId(user.getId());
+        response.setEmail(user.getEmail());
+        response.setFullName(user.getFullName());
+        response.setUserType(user.getUserType() != null ? user.getUserType().name() : null);
+        
+        // Paso 2: Verificar rostro usando el servicio de modelado facial
         try {
-            byte[] faceBytes = Base64.getDecoder().decode(faceBase64.getBytes(StandardCharsets.UTF_8));
-            String faceHash = sha256(faceBytes);
-
-            if (faceHash.equals(user.getFaceHash())) {
-                // Rostro coincide: generar JWT temporal
+            FacialVerifyResponse facialResponse = facialRecognitionService.verifyFace(
+                    identification, 
+                    faceBase64
+            );
+            
+            if (facialResponse.isSuccess() && facialResponse.isMatch()) {
+                // Rostro verificado correctamente
+                response.setVerified(true);
+                response.setConfidence(facialResponse.getConfidence());
+                response.setMessage("Identidad verificada correctamente");
+                
+                // Generar JWT temporal (válido para establecer contraseña)
                 UserPrincipal principal = UserPrincipal.from(user);
                 String token = jwtTokenProvider.createToken(principal);
-
-                response.setVerified(true);
                 response.setToken(token);
-                response.setUserId(user.getId());
-                response.setEmail(user.getEmail());
-                response.setFullName(user.getFullName());
-                response.setUserType(user.getUserType() != null ? user.getUserType().name() : null);
-                response.setMessage("Rostro verificado correctamente");
-
-                log.info("Usuario {} verificado por rostro", user.getId());
+                
+                log.info("Usuario {} identificado exitosamente por rostro (confianza: {}%)", 
+                        user.getId(), 
+                        facialResponse.getConfidence() * 100);
             } else {
+                // Rostro no coincide
                 response.setVerified(false);
-                response.setMessage("El rostro no coincide");
+                response.setConfidence(facialResponse.getConfidence());
+                response.setMessage(facialResponse.getMessage() != null ? 
+                        facialResponse.getMessage() : "El rostro no coincide con el registrado");
+                
+                log.warn("Verificación facial fallida para usuario {}: {}", 
+                        user.getId(), response.getMessage());
             }
-        } catch (IllegalArgumentException e) {
+        } catch (Exception e) {
+            log.error("Error al verificar rostro para usuario {}: {}", 
+                    user.getId(), e.getMessage(), e);
             response.setVerified(false);
-            response.setMessage("Formato de imagen inválido");
+            response.setMessage("Error al verificar rostro: " + e.getMessage());
         }
-
+        
         return response;
     }
 
+    /**
+     * PASO 2: Establecer contraseña (solo después de verificación exitosa en PASO 1)
+     * Requiere un JWT válido obtenido de identify()
+     */
     @Override
     @Transactional
     public AuthDto.AuthResponse setPassword(Long userId, String password) {
@@ -125,22 +135,63 @@ public class AuthServiceImpl implements AuthService {
         return response;
     }
 
+    /**
+     * LOGIN: CI + contraseña + rostro
+     * 
+     * Flujo:
+     * 1. Buscar usuario por CI
+     * 2. Validar contraseña contra la almacenada
+     * 3. Verificar rostro usando el servicio de modelado facial
+     * 4. Si ambas validaciones pasaron, generar JWT de sesión
+     */
     @Override
     public AuthDto.AuthResponse login(AuthDto.LoginRequest request) {
-        // Buscar usuario por identificación
+        // Paso 1: Buscar usuario por identificación
         User user = userRepository.findByIdentification(request.getIdentification())
                 .orElseThrow(() -> new BadCredentialsException("Identificación o contraseña inválida"));
 
-        // Validar contraseña
+        // Paso 2: Validar contraseña
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            log.warn("Intento de login con contraseña incorrecta para usuario {}", user.getId());
             throw new BadCredentialsException("Identificación o contraseña inválida");
+        }
+
+        // Paso 3: Verificar rostro usando el servicio de modelado facial
+        try {
+            FacialVerifyResponse facialResponse = facialRecognitionService.verifyFace(
+                    request.getIdentification(),
+                    request.getFaceBase64()
+            );
+            
+            if (!facialResponse.isSuccess() || !facialResponse.isMatch()) {
+                log.warn("Login fallido: verificación facial rechazada para usuario {} (confianza: {}%)",
+                        user.getId(),
+                        facialResponse.getConfidence() * 100);
+                throw new BadCredentialsException(
+                        facialResponse.getMessage() != null ? 
+                        facialResponse.getMessage() : "Verificación facial fallida"
+                );
+            }
+            
+            log.info("Login exitoso: contraseña y rostro verificados para usuario {} (confianza: {}%)",
+                    user.getId(),
+                    facialResponse.getConfidence() * 100);
+        } catch (RuntimeException e) {
+            // Re-lanzar excepciones de BadCredentialsException
+            if (e instanceof BadCredentialsException) {
+                throw e;
+            }
+            // Para otras excepciones (conexión fallida, etc)
+            log.error("Error al verificar rostro en login para usuario {}: {}", 
+                    user.getId(), e.getMessage(), e);
+            throw new BadCredentialsException("Error al verificar rostro: " + e.getMessage());
         }
 
         // Actualizar último login
         user.setLastLoginAt(java.time.LocalDateTime.now());
         userRepository.save(user);
 
-        // Generar token
+        // Generar token de sesión
         UserPrincipal principal = UserPrincipal.from(user);
         String token = jwtTokenProvider.createToken(principal);
 
@@ -152,10 +203,8 @@ public class AuthServiceImpl implements AuthService {
         response.setUserType(user.getUserType().name());
         response.setPasswordSet(true);
 
-        log.info("Login exitoso para usuario {}", user.getId());
         return response;
     }
-
 
     @Override
     public void logout(String token) {

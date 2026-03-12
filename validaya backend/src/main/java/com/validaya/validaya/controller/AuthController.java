@@ -17,64 +17,58 @@ public class AuthController {
 
     private final AuthService authService;
 
-    /**
-     * Paso 1: Verificar que el usuario existe por su carnet de identidad.
-     */
-    @GetMapping("/identify")
+    @PostMapping("/identify")
     public ResponseEntity<ApiResponse<AuthDto.IdentifyResponse>> identify(
             @Valid @RequestBody AuthDto.IdentifyRequest request) {
-        AuthDto.IdentifyResponse response = authService.identify(request.getIdentification());
-        if (response.isExists()) {
-            return ResponseEntity.ok(ApiResponse.ok(response));
-        } else {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.error("Usuario no encontrado"));
-        }
-    }
-
-    /**
-     * Paso 2: Verificar rostro del usuario.
-     * Si el rostro coincide, retorna un JWT temporal para establecer contraseña.
-     */
-    @GetMapping("/verify-face")
-    public ResponseEntity<ApiResponse<AuthDto.FaceVerificationResponse>> verifyFace(
-            @Valid @RequestBody AuthDto.VerifyFaceRequest request) {
-        AuthDto.FaceVerificationResponse response = authService.verifyFace(
+        
+        AuthDto.IdentifyResponse response = authService.identify(
                 request.getIdentification(),
                 request.getFaceBase64()
         );
-        if (response.isVerified()) {
-            return ResponseEntity.ok(ApiResponse.ok("Rostro verificado", response));
-        } else {
+        
+        if (!response.isExists()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("Usuario no encontrado"));
+        }
+        
+        if (!response.isVerified()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ApiResponse.error(response.getMessage()));
         }
+        
+        return ResponseEntity.ok(ApiResponse.ok("Identidad verificada", response));
     }
 
-    /**
-     * Paso 3: Establecer contraseña (requiere JWT válido obtenido de verifyFace).
-     */
     @PutMapping("/set-password")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<AuthDto.AuthResponse>> setPassword(
             @Valid @RequestBody AuthDto.SetPasswordRequest request) {
         Long userId = getCurrentUserId();
         AuthDto.AuthResponse response = authService.setPassword(userId, request.getPassword());
+        
         return ResponseEntity.ok(ApiResponse.ok("Contraseña establecida correctamente", response));
     }
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthDto.AuthResponse>> login(
             @Valid @RequestBody AuthDto.LoginRequest request) {
-        AuthDto.AuthResponse response = authService.login(request);
-        return ResponseEntity.ok(ApiResponse.ok("Login exitoso", response));
+        
+        try {
+            AuthDto.AuthResponse response = authService.login(request);
+            return ResponseEntity.ok(ApiResponse.ok("Login exitoso", response));
+        } catch (org.springframework.security.authentication.BadCredentialsException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error(e.getMessage()));
+        }
     }
 
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(
             @RequestHeader("Authorization") String authHeader) {
+        
         String token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
         authService.logout(token);
+        
         return ResponseEntity.ok(ApiResponse.ok("Sesión cerrada", null));
     }
 

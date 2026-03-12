@@ -29,4 +29,10 @@ public class TicketController {
             @PathVariable Long applicationId) {
         return ResponseEntity.ok(ApiResponse.ok(ticketService.getByApplication(applicationId)));
     }
+
+    @PostMapping("/application/{applicationId}")
+    public ResponseEntity<ApiResponse<TicketDto.Response>> CreateFOrApplication(
+            @PathVariable Long applicationId) {
+        return ResponseEntity.ok(ApiResponse.ok(ticketService.generateForApplication(applicationId)));
+    }
 }
