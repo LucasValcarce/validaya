@@ -97,17 +97,6 @@ public class PaymentController {
             );
         }
 
-        // Validate HMAC signature
-        if (!HmacValidationUtil.validateSignature(
-                body, 
-                signature, 
-                sterumPayProperties.getWebhookSecret())) {
-            log.error("Webhook signature validation failed");
-            return ResponseEntity.badRequest().body(
-                    ApiResponse.error("Webhook signature invalid")
-            );
-        }
-
         try {
             // Note: This is handled by WebhookController instead
             log.info("Webhook validation successful - redirecting to WebhookController");

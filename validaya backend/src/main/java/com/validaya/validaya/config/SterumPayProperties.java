@@ -17,8 +17,6 @@ public class SterumPayProperties {
 
     private String publicKey;
 
-    private String webhookSecret;
-
     private String callbackUrl;
 
     private int connectTimeout = 5000;

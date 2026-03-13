@@ -3,35 +3,41 @@ import { useNavigate } from 'react-router-dom'
 import BiometricCamera from '../components/BiometricCamera'
 import * as authService from '../services/authService'
 
+/*
+  FLUJO:
+  1. Usuario ingresa CI + contraseña (siempre se muestran ambos campos)
+  2. Biometría facial
+  3. POST /identify con CI + faceBase64
+     - Si passwordSet === false → step 'set-password' (primera vez)
+     - Si passwordSet === true  → POST /login con CI + password + faceBase64 → /home
+*/
+
+const validateCI = (val) => /^\d{5,10}$/.test(val.trim())
 
 export default function Login() {
   const navigate = useNavigate()
 
-  // 'ci' | 'biometric' | 'set-password'
-  const [step, setStep]           = useState('ci')
-  const [isFirstTime, setIsFirstTime] = useState(true) // toggle del usuario
+  const [role,     setRole]     = useState('ciudadano') // 'ciudadano' | 'institucion'
+  const [step,     setStep]     = useState('credentials') // 'credentials' | 'biometric' | 'set-password'
 
   const [ci,          setCI]          = useState('')
   const [password,    setPassword]    = useState('')
+  const [showPass,    setShowPass]    = useState(false)
   const [newPassword, setNewPassword] = useState('')
   const [confirmPass, setConfirmPass] = useState('')
-  const [showPass,    setShowPass]    = useState(false)
   const [showNew,     setShowNew]     = useState(false)
 
-  const [errors,  setErrors]  = useState({})
+  const [errors,   setErrors]   = useState({})
   const [apiError, setApiError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const [loading,  setLoading]  = useState(false)
 
-  // Guardamos datos inter-paso
-  const [capturedImage, setCapturedImage] = useState(null)
-  const [tempToken,     setTempToken]     = useState(null) // JWT de /identify
+  const [tempToken, setTempToken] = useState(null)
 
-  /* ── Validación CI ─────────────────────────────────── */
-  const handleCISubmit = (e) => {
+  /* ── Validar credenciales → ir a biometría ─────────── */
+  const handleSubmit = (e) => {
     e.preventDefault()
     const newErrors = {}
-    if (!/^\d{5,10}$/.test(ci.trim())) newErrors.ci = 'La CI debe tener entre 5 y 10 dígitos.'
-    if (!isFirstTime && password.length < 6)  newErrors.password = 'Mínimo 6 caracteres.'
+    if (!validateCI(ci)) newErrors.ci = 'La CI debe tener entre 5 y 10 dígitos.'
     setErrors(newErrors)
     if (Object.keys(newErrors).length > 0) return
     setApiError('')
@@ -40,53 +46,51 @@ export default function Login() {
 
   /* ── Biometría capturada ───────────────────────────── */
   const handleBiometricSuccess = async (imageDataUrl) => {
-    setCapturedImage(imageDataUrl)
     setLoading(true)
     setApiError('')
-
-    // Extrae solo el base64 sin el prefijo "data:image/jpeg;base64,"
     const faceBase64 = imageDataUrl.split(',')[1]
 
     try {
-      if (isFirstTime) {
-        // Primer inicio de sesión: CI + rostro
-        const res = await authService.identify(ci.trim(), faceBase64)
+      // Siempre llamamos primero a /identify
+      const res = await authService.identify(ci.trim(), faceBase64)
 
-        if (!res.exists) {
-          setApiError('No se encontró un usuario con esa Cédula de Identidad.')
-          setStep('ci')
-          return
-        }
-        if (!res.verified) {
-          setApiError(res.message || 'Verificación facial fallida. Intenta de nuevo.')
-          setStep('ci')
-          return
-        }
+      if (!res.exists) {
+        setApiError('No se encontró un usuario con esa Cédula de Identidad.')
+        setStep('credentials')
+        return
+      }
 
-        // Guardamos el JWT temporal para /set-password
+      if (!res.verified) {
+        setApiError(res.message || 'Verificación facial fallida. Intenta de nuevo.')
+        setStep('credentials')
+        return
+      }
+
+      if (!res.passwordSet) {
+        // Primera vez: no tiene contraseña → establecer contraseña
         setTempToken(res.token)
         setStep('set-password')
-
       } else {
-        // Login normal: CI + contraseña + rostro
-        const res = await authService.login(ci.trim(), password, faceBase64)
-        authService.saveSession(res)
+        // Ya tiene contraseña → login normal con CI + password + faceBase64
+        const loginRes = await authService.login(ci.trim(), password, faceBase64)
+        authService.saveSession(loginRes)
         navigate('/home', { replace: true })
       }
+
     } catch (err) {
       setApiError(err.message || 'Error al conectar con el servidor.')
-      setStep('ci')
+      setStep('credentials')
     } finally {
       setLoading(false)
     }
   }
 
-  /* ── Set password ──────────────────────────────────── */
+  /* ── Establecer contraseña ─────────────────────────── */
   const handleSetPassword = async (e) => {
     e.preventDefault()
     const newErrors = {}
-    if (newPassword.length < 8)             newErrors.newPassword = 'Mínimo 8 caracteres.'
-    if (newPassword !== confirmPass)         newErrors.confirmPass = 'Las contraseñas no coinciden.'
+    if (newPassword.length < 8)          newErrors.newPassword = 'Mínimo 8 caracteres.'
+    if (newPassword !== confirmPass)      newErrors.confirmPass = 'Las contraseñas no coinciden.'
     setErrors(newErrors)
     if (Object.keys(newErrors).length > 0) return
 
@@ -155,29 +159,30 @@ export default function Login() {
             </span>
           </div>
 
-          {/* ── STEP: ci ──────────────────────────── */}
-          {step === 'ci' && (
+          {/* ── STEP: credentials ─────────────────── */}
+          {(step === 'credentials' || (loading && step === 'credentials')) && (
             <>
               <div className="mb-7">
                 <h2 className="text-2xl font-black text-navy">Iniciar sesión</h2>
-                <p className="text-sm text-gray-400 mt-1">Accede a tu cuenta de DocuTrack</p>
+                <p className="text-sm text-gray-400 mt-1">Accede a tu cuenta o regístrate</p>
               </div>
 
-              {/* Toggle primer inicio / login normal */}
+              {/* Role selector */}
               <div className="grid grid-cols-2 gap-3 mb-7">
                 {[
-                  { label: 'Primera vez',    val: true  },
-                  { label: 'Ya tengo cuenta', val: false },
-                ].map(({ label, val }) => (
+                  { id: 'ciudadano',   label: 'Ciudadano',   ico: '👤' },
+                  { id: 'institucion', label: 'Institución', ico: '🏛️' },
+                ].map(({ id, label, ico }) => (
                   <button
-                    key={String(val)}
+                    key={id}
                     type="button"
-                    onClick={() => { setIsFirstTime(val); setErrors({}); setApiError('') }}
+                    onClick={() => setRole(id)}
                     className={`py-3 rounded-xl border-2 text-sm font-bold transition-all
-                      ${isFirstTime === val
+                      ${role === id
                         ? 'border-teal text-teal bg-teal-light'
                         : 'border-gray-200 text-gray-400 hover:border-teal/50'}`}
                   >
+                    <span className="block text-xl mb-1">{ico}</span>
                     {label}
                   </button>
                 ))}
@@ -191,7 +196,7 @@ export default function Login() {
                 </div>
               )}
 
-              <form onSubmit={handleCISubmit} noValidate className="flex flex-col gap-5">
+              <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
 
                 {/* CI */}
                 <div>
@@ -215,45 +220,41 @@ export default function Login() {
                   {errors.ci && <p className="text-red-500 text-xs mt-1.5">⚠ {errors.ci}</p>}
                 </div>
 
-                {/* Contraseña (solo si NO es primera vez) */}
-                {!isFirstTime && (
-                  <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">
-                      Contraseña
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showPass ? 'text' : 'password'}
-                        placeholder="Tu contraseña"
-                        value={password}
-                        onChange={e => {
-                          setPassword(e.target.value)
-                          setErrors(p => ({ ...p, password: undefined }))
-                        }}
-                        className={`w-full px-4 py-3 rounded-xl border-2 text-navy text-sm outline-none transition-colors pr-11
-                          placeholder:text-gray-300 focus:border-teal
-                          ${errors.password ? 'border-red-400 bg-red-50' : 'border-gray-200'}`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPass(v => !v)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
-                      >
-                        {showPass ? (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
-                          </svg>
-                        ) : (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                        )}
-                      </button>
-                    </div>
-                    {errors.password && <p className="text-red-500 text-xs mt-1.5">⚠ {errors.password}</p>}
+                {/* Contraseña */}
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">
+                    Contraseña
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPass ? 'text' : 'password'}
+                      placeholder="Si es tu primera vez, déjala en blanco"
+                      value={password}
+                      onChange={e => setPassword(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 text-navy text-sm outline-none
+                        transition-colors pr-11 placeholder:text-gray-300 focus:border-teal"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                    >
+                      {showPass ? (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
                   </div>
-                )}
+                  <p className="text-[10px] text-gray-400 mt-1.5">
+                    Si es tu primer ingreso, no necesitas contraseña.
+                  </p>
+                </div>
 
                 {/* Nota biometría */}
                 <div className="flex items-start gap-3 px-3 py-3 bg-teal-light rounded-xl border border-teal/20">
@@ -261,10 +262,7 @@ export default function Login() {
                   <div>
                     <p className="text-xs font-bold text-teal">Verificación biométrica requerida</p>
                     <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                      {isFirstTime
-                        ? 'Se activará la cámara para confirmar tu identidad. Luego podrás establecer tu contraseña.'
-                        : 'Se activará la cámara para confirmar tu identidad junto a tu contraseña.'
-                      }
+                      Se activará la cámara para confirmar tu identidad facial antes de ingresar.
                     </p>
                   </div>
                 </div>
@@ -274,7 +272,21 @@ export default function Login() {
                   className="w-full py-3.5 rounded-xl bg-teal text-white font-bold text-sm
                     hover:bg-teal-hover active:scale-[.98] transition-all shadow-md"
                 >
-                  Continuar a verificación facial →
+                  Continuar a biometría →
+                </button>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-gray-200" />
+                  <span className="text-xs text-gray-400">o</span>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
+
+                <button
+                  type="button"
+                  className="w-full py-3 rounded-xl border-2 border-gray-200 text-navy text-sm font-semibold
+                    hover:border-gray-300 transition-colors"
+                >
+                  Registrarme como ciudadano
                 </button>
               </form>
             </>
@@ -289,7 +301,7 @@ export default function Login() {
                 </div>
                 <h2 className="text-2xl font-black text-navy">Establece tu contraseña</h2>
                 <p className="text-sm text-gray-400 mt-1">
-                  Tu identidad fue verificada. Crea una contraseña para futuros inicios de sesión.
+                  Identidad verificada. Crea tu contraseña para futuros inicios de sesión.
                 </p>
               </div>
 
@@ -398,7 +410,7 @@ export default function Login() {
 
                 <button
                   type="button"
-                  onClick={() => { setStep('ci'); setApiError('') }}
+                  onClick={() => { setStep('credentials'); setApiError('') }}
                   className="text-xs text-gray-400 hover:text-gray-600 text-center transition-colors"
                 >
                   ← Volver
@@ -407,14 +419,14 @@ export default function Login() {
             </>
           )}
 
-          {/* Loading overlay cuando procesa después de biometría */}
-          {loading && step === 'ci' && (
-            <div className="flex flex-col items-center gap-3 py-8">
+          {/* Loading mientras verifica después de biometría */}
+          {loading && step !== 'set-password' && (
+            <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-3">
               <svg className="w-10 h-10 animate-spin text-teal" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              <p className="text-sm text-gray-500">Verificando identidad…</p>
+              <p className="text-sm font-semibold text-navy">Verificando identidad…</p>
             </div>
           )}
         </div>
@@ -424,7 +436,7 @@ export default function Login() {
       {step === 'biometric' && (
         <BiometricCamera
           onSuccess={handleBiometricSuccess}
-          onCancel={() => setStep('ci')}
+          onCancel={() => setStep('credentials')}
         />
       )}
     </div>
