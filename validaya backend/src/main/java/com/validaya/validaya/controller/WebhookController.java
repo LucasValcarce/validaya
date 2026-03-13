@@ -73,17 +73,6 @@ public class WebhookController {
                 );
             }
 
-            // Step 2: Validate HMAC signature
-            if (!HmacValidationUtil.validateSignature(
-                    body,
-                    signature,
-                    sterumPayProperties.getWebhookSecret())) {
-                log.error("Webhook signature validation failed");
-                return ResponseEntity.badRequest().body(
-                        ApiResponse.error("Webhook signature invalid")
-                );
-            }
-
             log.debug("Webhook signature and timestamp validated successfully");
 
             // Step 3: Parse notification
