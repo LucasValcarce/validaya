@@ -11,5 +11,5 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class FacialRegisterRequest {
     private String person_id;      // CI del usuario
-    private String image;          // Base64 de la imagen del rostro
+    private String image_base64;          // Base64 de la imagen del rostro
 }
