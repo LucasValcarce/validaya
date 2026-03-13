@@ -285,4 +285,3 @@ Lista todos los IDs de ciudadanos actualmente registrados. Útil para auditoría
 ```
 
 ---
-
