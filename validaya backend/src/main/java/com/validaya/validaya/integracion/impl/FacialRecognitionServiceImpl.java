@@ -29,7 +29,7 @@ public class FacialRecognitionServiceImpl implements FacialRecognitionService {
             
             FacialVerifyRequest request = FacialVerifyRequest.builder()
                     .person_id(identification)
-                    .image(faceBase64)
+                    .image_base64(faceBase64)
                     .build();
 
             log.info("Solicitando verificación facial para: {}", identification);
@@ -83,7 +83,7 @@ public class FacialRecognitionServiceImpl implements FacialRecognitionService {
             
             FacialRegisterRequest request = FacialRegisterRequest.builder()
                     .person_id(identification)
-                    .image(faceBase64)
+                    .image_base64(faceBase64)
                     .build();
 
             log.info("Solicitando registro facial para: {}", identification);
