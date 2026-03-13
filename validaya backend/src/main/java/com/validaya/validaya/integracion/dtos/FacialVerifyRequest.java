@@ -14,5 +14,5 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class FacialVerifyRequest {
     private String person_id;
-    private String image;
+    private String image_base64;
 }
