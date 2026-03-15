@@ -48,6 +48,11 @@ public class AuthServiceImpl implements AuthService {
             response.setMessage("Usuario no encontrado");
             log.warn("Intento de identificación con CI inexistente: {}", identification);
             return response;
+        } else if (user.getFaceVerified()) {
+            response.setExists(true);
+            response.setVerified(false);
+            response.setMessage("Usuario ya se verifico antes");
+            log.info("Usuario {} ya ha verificado su rostro", user.getIdentification());
         }
         
         response.setExists(true);
@@ -66,6 +71,7 @@ public class AuthServiceImpl implements AuthService {
             if (facialResponse.isSuccess() && facialResponse.isMatch()) {
                 // Rostro verificado correctamente
                 response.setVerified(true);
+                user.setFaceVerified(true);
                 response.setConfidence(facialResponse.getConfidence());
                 response.setMessage("Identidad verificada correctamente");
                 
