@@ -71,7 +71,6 @@ public class AuthServiceImpl implements AuthService {
             if (facialResponse.isSuccess() && facialResponse.isMatch()) {
                 // Rostro verificado correctamente
                 response.setVerified(true);
-                user.setFaceVerified(true);
                 response.setConfidence(facialResponse.getConfidence());
                 response.setMessage("Identidad verificada correctamente");
                 
@@ -125,6 +124,8 @@ public class AuthServiceImpl implements AuthService {
         response.setUserType(user.getUserType().name());
         response.setPasswordSet(true);
 
+        user.setFaceVerified(true);
+
         log.info("Contraseña establecida para usuario {}", userId);
         return response;
     }
@@ -134,6 +135,11 @@ public class AuthServiceImpl implements AuthService {
         // Paso 1: Buscar usuario por identificación
         User user = userRepository.findByIdentification(request.getIdentification())
                 .orElseThrow(() -> new BadCredentialsException("Identificación o contraseña inválida"));
+
+        if (!user.getFaceVerified()) {
+            log.warn("Intento de login sin verificar rostro para usuario {}", user.getId());
+            throw new BadCredentialsException("Verifique su rostro para continuar");
+        }
 
         // Paso 2: Validar contraseña
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
