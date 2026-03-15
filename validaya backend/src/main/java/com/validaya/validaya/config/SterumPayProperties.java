@@ -31,7 +31,7 @@ public class SterumPayProperties {
 
     private long retryDelay = 1000;
 
-    private long webhookMaxAge = 600;
+    private long webhookMaxAge = 120;
 
     private String defaultCurrency = "BOB";
 

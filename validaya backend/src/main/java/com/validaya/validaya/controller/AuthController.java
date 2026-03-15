@@ -32,9 +32,8 @@ public class AuthController {
         }
         
         if (!response.isVerified()) {
-            //return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-            //        .body(ApiResponse.error(response.getMessage()));
-            return ResponseEntity.ok(ApiResponse.ok("Error con el servicio, pero se esta permiteindo acceso", response));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error(response.getMessage()));
         }
         
         return ResponseEntity.ok(ApiResponse.ok("Identidad verificada", response));
@@ -54,13 +53,13 @@ public class AuthController {
     public ResponseEntity<ApiResponse<AuthDto.AuthResponse>> login(
             @Valid @RequestBody AuthDto.LoginRequest request) {
         
-        //try {
+        try {
             AuthDto.AuthResponse response = authService.login(request);
             return ResponseEntity.ok(ApiResponse.ok("Login exitoso", response));
-        //} catch (org.springframework.security.authentication.BadCredentialsException e) {
-        //    return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-        //            .body(ApiResponse.error(e.getMessage()));
-        //}
+        } catch (org.springframework.security.authentication.BadCredentialsException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.error(e.getMessage()));
+        }
     }
 
     @PostMapping("/logout")

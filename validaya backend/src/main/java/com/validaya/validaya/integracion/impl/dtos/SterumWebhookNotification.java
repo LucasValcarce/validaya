@@ -35,7 +35,12 @@ public class SterumWebhookNotification {
     private String reference;
 
     /**
-     * Creation timestamp
+     * Stereum notification timestamp in milliseconds
+     */
+    private Long timestamp;
+
+    /**
+     * Creation timestamp (alternative field name)
      */
     @JsonProperty("created_at")
     private Long createdAt;
