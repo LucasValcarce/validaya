@@ -51,6 +51,8 @@ public class WebSecurityConfiguration implements WebMvcConfigurer, Serializable 
                         ).permitAll()
                         // allow registration if you want:
                         .requestMatchers(HttpMethod.POST, "/api/v1/users/**").permitAll()
+                        // Webhook endpoints - no authentication required
+                        .requestMatchers("/api/v1/webhooks/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtTokenFilter, UsernamePasswordAuthenticationFilter.class)

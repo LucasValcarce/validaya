@@ -65,48 +65,4 @@ public class PaymentController {
         PaymentDto.Response response = paymentService.cancelPayment(paymentId);
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
-
-    /**
-     * Webhook endpoint for Stereum Pay notifications.
-     * Validates HMAC signature and timestamp before processing.
-     * Supports both transaction notifications and test notifications.
-     *
-     * @param signature x-signature header with HMAC-SHA256 signature
-     * @param xTimestamp x-timestamp header with unix timestamp
-     * @param body the webhook payload
-     * @return response indicating success
-     */
-    @PostMapping(
-            value = "/webhook",
-            produces = MediaType.APPLICATION_JSON_VALUE,
-            consumes = MediaType.APPLICATION_JSON_VALUE
-    )
-    public ResponseEntity<?> handleWebhook(
-            @RequestHeader("x-signature") String signature,
-            @RequestHeader("x-timestamp") Long xTimestamp,
-            @RequestBody String body) {
-
-        log.info("Received webhook notification from Stereum Pay");
-        log.debug("Signature: {}, Timestamp: {}", signature, xTimestamp);
-
-        // Validate timestamp (prevent replay attacks)
-        if (!HmacValidationUtil.validateTimestamp(xTimestamp, sterumPayProperties.getWebhookMaxAge())) {
-            log.warn("Webhook timestamp validation failed");
-            return ResponseEntity.badRequest().body(
-                    ApiResponse.error("Webhook timestamp invalid or expired")
-            );
-        }
-
-        try {
-            // Note: This is handled by WebhookController instead
-            log.info("Webhook validation successful - redirecting to WebhookController");
-            return ResponseEntity.ok(ApiResponse.ok("Webhook received"));
-            
-        } catch (Exception e) {
-            log.error("Error processing webhook: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError().body(
-                    ApiResponse.error("Error processing webhook")
-            );
-        }
-    }
 }
