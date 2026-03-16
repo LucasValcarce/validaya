@@ -8,6 +8,7 @@ import Historial from './pages/Historial'
 import Tickets from './pages/Tickets'
 import Perfil from './pages/Perfil'
 import Landing from './pages/Landing'
+import { Analytics } from '@vercel/analytics/react'
 import { getToken } from './services/authService'
 
 
@@ -29,6 +30,7 @@ export default function App() {
         <Route path="/tramites" element={<Tramites />} />
         <Route path="/tramite-flow" element={<TramiteFlow />} />
       </Routes>
+      <Analytics />
     </BrowserRouter>
   )
 }
