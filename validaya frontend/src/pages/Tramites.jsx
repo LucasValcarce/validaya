@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import Layout from '../components/Layout'
 
 const TRAMITES = [
@@ -209,10 +209,12 @@ function DetalleModal({ tramite, onClose, onIniciar }) {
 }
 
 export default function Tramites() {
-  const navigate           = useNavigate()
-  const [searchParams]     = useSearchParams()
+  const navigate       = useNavigate()
+  const location       = useLocation()
+  const [searchParams] = useSearchParams()
   const [busqueda, setBusqueda] = useState('')
   const [detalle,  setDetalle]  = useState(null)
+  const [showIntro, setShowIntro] = useState(() => !!location.state?.nuevo)
 
   const docParam       = searchParams.get('doc')
   const busquedaActiva = busqueda || (docParam ? TRAMITES.find(t => t.id === docParam)?.nombre || '' : '')
@@ -229,6 +231,36 @@ export default function Tramites() {
 
   return (
     <Layout title="📝 Trámites disponibles">
+
+      {showIntro && (
+        <div className="mb-5 rounded-2xl border border-teal/30 bg-teal-light px-4 py-4 sm:px-5 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <p className="text-sm font-black text-navy">Empecemos tu nuevo trámite</p>
+            <p className="text-xs text-gray-600 mt-1">
+              Elige uno de los trámites más comunes o busca por nombre o institución.
+            </p>
+            <div className="flex flex-wrap gap-2 mt-3">
+              {TRAMITES.slice(0, 3).map(t => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setDetalle(t)}
+                  className="px-3 py-1.5 rounded-full bg-white text-[11px] font-bold text-navy border border-gray-200 hover:border-teal hover:text-teal transition-colors"
+                >
+                  {t.ico} {t.nombre}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowIntro(false)}
+            className="self-start sm:self-auto px-3 py-2 rounded-xl bg-navy text-white text-xs font-bold hover:bg-navy-light transition-colors"
+          >
+            Ver todos los trámites
+          </button>
+        </div>
+      )}
 
       <div className="relative mb-6">
         <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
