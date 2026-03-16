@@ -53,6 +53,7 @@ public class AuthServiceImpl implements AuthService {
             response.setVerified(false);
             response.setMessage("Usuario ya se verifico antes");
             log.info("Usuario {} ya ha verificado su rostro", user.getIdentification());
+            return response;
         }
         
         response.setExists(true);
