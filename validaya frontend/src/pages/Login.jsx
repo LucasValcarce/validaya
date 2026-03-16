@@ -46,44 +46,52 @@ export default function Login() {
 
   /* ── Biometría capturada ───────────────────────────── */
   const handleBiometricSuccess = async (imageDataUrl) => {
-    setLoading(true)
-    setApiError('')
-    const faceBase64 = imageDataUrl.split(',')[1]
+  setLoading(true)
+  setApiError('')
+  const faceBase64 = imageDataUrl.split(',')[1]
 
-    try {
-      // Siempre llamamos primero a /identify
-      const res = await authService.identify(ci.trim(), faceBase64)
+  console.log('[handleBiometricSuccess] → llamando /identify primero')
 
-      if (!res.exists) {
-        setApiError('No se encontró un usuario con esa Cédula de Identidad.')
-        setStep('credentials')
-        return
-      }
+  try {
+    const res = await authService.identify(ci.trim(), faceBase64)
+    console.log('[handleBiometricSuccess] identify respondió:', res)
 
-      if (!res.verified) {
-        setApiError(res.message || 'Verificación facial fallida. Intenta de nuevo.')
-        setStep('credentials')
-        return
-      }
-
-      if (!res.passwordSet) {
-        // Primera vez: no tiene contraseña → establecer contraseña
-        setTempToken(res.token)
-        setStep('set-password')
-      } else {
-        // Ya tiene contraseña → login normal con CI + password + faceBase64
-        const loginRes = await authService.login(ci.trim(), password, faceBase64)
-        authService.saveSession(loginRes)
-        navigate('/home', { replace: true })
-      }
-
-    } catch (err) {
-      setApiError(err.message || 'Error al conectar con el servidor.')
-      setStep('credentials')
-    } finally {
-      setLoading(false)
+    // Caso 1: usuario ya tiene contraseña establecida (faceVerified=true en backend)
+    if (res.alreadyVerified) {
+      console.log('[handleBiometricSuccess] → usuario ya verificado, llamando /login')
+      const loginRes = await authService.login(ci.trim(), password, faceBase64)
+      authService.saveSession(loginRes)
+      navigate('/home', { replace: true })
+      return
     }
+
+    // Caso 2: usuario no existe
+    if (!res.exists) {
+      setApiError('No se encontró un usuario con esa Cédula de Identidad.')
+      setStep('credentials')
+      return
+    }
+
+    // Caso 3: verificación facial fallida
+    if (!res.verified) {
+      setApiError(res.message || 'Verificación facial fallida. Intenta de nuevo.')
+      setStep('credentials')
+      return
+    }
+
+    // Caso 4: primera vez — identificado OK, establecer contraseña
+    console.log('[handleBiometricSuccess] → primera vez, ir a set-password')
+    setTempToken(res.token)
+    setStep('set-password')
+
+  } catch (err) {
+    console.error('[handleBiometricSuccess] error:', err)
+    setApiError(err.message || 'Error al conectar con el servidor.')
+    setStep('credentials')
+  } finally {
+    setLoading(false)
   }
+}
 
   /* ── Establecer contraseña ─────────────────────────── */
   const handleSetPassword = async (e) => {

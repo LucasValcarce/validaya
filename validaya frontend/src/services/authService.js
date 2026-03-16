@@ -12,8 +12,14 @@ export async function identify(identification, faceBase64) {
   const json = await res.json()
   console.log('[identify] ← RESPONSE status:', res.status, '| body:', json)
 
+  // 401 con este mensaje específico = usuario ya tiene contraseña → debe usar /login
+  if (res.status === 401 && json.error === 'Usuario ya se verifico antes') {
+    console.log('[identify] → usuario ya verificado, debe usar /login')
+    return { alreadyVerified: true }
+  }
+
   if (!res.ok) throw new Error(json.message || 'Error al identificar usuario')
-  return json.data
+  return json.data  // IdentifyResponse: { exists, verified, token, ... }
 }
 
 export async function setPassword(token, password) {
