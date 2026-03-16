@@ -48,6 +48,11 @@ public class AuthServiceImpl implements AuthService {
             response.setMessage("Usuario no encontrado");
             log.warn("Intento de identificación con CI inexistente: {}", identification);
             return response;
+        } else if (user.getFaceVerified()) {
+            response.setExists(true);
+            response.setVerified(false);
+            response.setMessage("Usuario ya se verifico antes");
+            log.info("Usuario {} ya ha verificado su rostro", user.getIdentification());
         }
         
         response.setExists(true);
@@ -119,6 +124,8 @@ public class AuthServiceImpl implements AuthService {
         response.setUserType(user.getUserType().name());
         response.setPasswordSet(true);
 
+        user.setFaceVerified(true);
+
         log.info("Contraseña establecida para usuario {}", userId);
         return response;
     }
@@ -128,6 +135,11 @@ public class AuthServiceImpl implements AuthService {
         // Paso 1: Buscar usuario por identificación
         User user = userRepository.findByIdentification(request.getIdentification())
                 .orElseThrow(() -> new BadCredentialsException("Identificación o contraseña inválida"));
+
+        if (!user.getFaceVerified()) {
+            log.warn("Intento de login sin verificar rostro para usuario {}", user.getId());
+            throw new BadCredentialsException("Verifique su rostro para continuar");
+        }
 
         // Paso 2: Validar contraseña
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
