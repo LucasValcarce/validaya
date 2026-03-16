@@ -54,7 +54,7 @@ export default function Home() {
       <h2 className="text-sm font-black text-navy mb-3">Accesos rápidos</h2>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
         <button
-          onClick={() => navigate('/tramites')}
+          onClick={() => navigate('/tramites', { state: { nuevo: true } })}
           className="bg-teal rounded-2xl p-4 flex flex-col gap-2 text-left hover:bg-teal-hover transition-colors active:scale-95"
         >
           <span className="text-2xl">📝</span>

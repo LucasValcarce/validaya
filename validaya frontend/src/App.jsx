@@ -7,12 +7,13 @@ import TramiteFlow from './pages/TramiteFlow'
 import Historial from './pages/Historial'
 import Tickets from './pages/Tickets'
 import Perfil from './pages/Perfil'
+import Landing from './pages/Landing'
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/"       element={<Navigate to="/login" replace />} />
+        <Route path="/"       element={<Landing />} />
         <Route path="/login"  element={<Login />} />
         <Route path="/home"   element={<Home />} />
         <Route path="/docs"   element={<Docs />} />
