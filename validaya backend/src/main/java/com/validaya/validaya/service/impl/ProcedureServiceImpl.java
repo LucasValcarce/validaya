@@ -4,6 +4,7 @@ import com.validaya.validaya.entity.Institution;
 import com.validaya.validaya.entity.Procedure;
 import com.validaya.validaya.entity.dto.ProcedureDto;
 import com.validaya.validaya.repository.InstitutionRepository;
+import com.validaya.validaya.repository.ProcedureDocumentRequirementRepository;
 import com.validaya.validaya.repository.ProcedureRepository;
 import com.validaya.validaya.service.ProcedureService;
 import com.validaya.validaya.utils.MapperUtil;
@@ -21,18 +22,22 @@ import java.util.stream.Collectors;
 public class ProcedureServiceImpl implements ProcedureService {
 
     private final ProcedureRepository procedureRepository;
+    private final ProcedureDocumentRequirementRepository requirementRepository;
     private final InstitutionRepository institutionRepository;
 
     @Override
     public ProcedureDto.Response getById(Long id) {
-        return MapperUtil.toProcedureResponse(findOrThrow(id));
+        Procedure proc = findOrThrow(id);
+        return MapperUtil.toProcedureResponse(proc,
+                requirementRepository.findByProcedureIdOrderByDisplayOrder(proc.getId()));
     }
 
     @Override
     public ProcedureDto.Response getBySlug(String slug) {
-        // "slug" in the API maps to Procedure.code in the entity
-        return MapperUtil.toProcedureResponse(procedureRepository.findByCode(slug)
-                .orElseThrow(() -> new EntityNotFoundException("Trámite no encontrado: " + slug)));
+        Procedure proc = procedureRepository.findByCode(slug)
+                .orElseThrow(() -> new EntityNotFoundException("Trámite no encontrado: " + slug));
+        return MapperUtil.toProcedureResponse(proc,
+                requirementRepository.findByProcedureIdOrderByDisplayOrder(proc.getId()));
     }
 
     @Override
@@ -44,7 +49,9 @@ public class ProcedureServiceImpl implements ProcedureService {
     @Override
     public List<ProcedureDto.Response> findByInstitution(Long institutionId) {
         return procedureRepository.findByInstitutionIdAndIsActiveTrue(institutionId).stream()
-                .map(MapperUtil::toProcedureResponse).collect(Collectors.toList());
+                .map(proc -> MapperUtil.toProcedureResponse(proc,
+                        requirementRepository.findByProcedureIdOrderByDisplayOrder(proc.getId())))
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -66,7 +73,8 @@ public class ProcedureServiceImpl implements ProcedureService {
                 .isActive(true)
                 .build();
 
-        return MapperUtil.toProcedureResponse(procedureRepository.save(procedure));
+        return MapperUtil.toProcedureResponse(procedureRepository.save(procedure),
+                requirementRepository.findByProcedureIdOrderByDisplayOrder(procedure.getId()));
     }
 
     @Override
@@ -81,7 +89,8 @@ public class ProcedureServiceImpl implements ProcedureService {
         if (request.getBasePrice() != null) procedure.setBasePrice(request.getBasePrice());
         if (request.getPlatformFee() != null) procedure.setPlatformFee(request.getPlatformFee());
         if (request.getEstimatedDays() != null) procedure.setEstimatedDays(request.getEstimatedDays());
-        return MapperUtil.toProcedureResponse(procedureRepository.save(procedure));
+        return MapperUtil.toProcedureResponse(procedureRepository.save(procedure),
+                requirementRepository.findByProcedureIdOrderByDisplayOrder(procedure.getId()));
     }
 
     @Override

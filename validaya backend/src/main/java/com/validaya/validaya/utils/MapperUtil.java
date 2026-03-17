@@ -4,6 +4,8 @@ import com.validaya.validaya.entity.*;
 import com.validaya.validaya.entity.dto.*;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Utilidad de mapeo entre entidades JPA y DTOs.
@@ -105,7 +107,8 @@ public class MapperUtil {
     }
 
     // ── Procedure ─────────────────────────────────────────────────────────
-    public static ProcedureDto.Response toProcedureResponse(Procedure proc) {
+    public static ProcedureDto.Response toProcedureResponse(Procedure proc,
+                                                            List<ProcedureDocumentRequirement> requirementEntities) {
         ProcedureDto.Response dto = new ProcedureDto.Response();
         dto.setId(proc.getId());
         dto.setInstitutionId(proc.getInstitution().getId());
@@ -131,6 +134,22 @@ public class MapperUtil {
             dto.setOutputDocumentTypeId(proc.getOutputDocumentType().getId());
             dto.setOutputDocumentTypeName(proc.getOutputDocumentType().getName());
         }
+
+        List<ProcedureDto.RequirementResponse> requirements = new ArrayList<>();
+        if (requirementEntities != null) {
+            for (ProcedureDocumentRequirement req : requirementEntities) {
+                ProcedureDto.RequirementResponse reqDto = new ProcedureDto.RequirementResponse();
+                reqDto.setId(req.getId());
+                if (req.getDocumentType() != null) {
+                    reqDto.setDocumentTypeId(req.getDocumentType().getId());
+                    reqDto.setDocumentTypeName(req.getDocumentType().getName());
+                }
+                reqDto.setIsMandatory(req.getIsMandatory());
+                reqDto.setMaxAgeMonths(req.getMaxAgeMonths());
+                requirements.add(reqDto);
+            }
+        }
+        dto.setRequirements(requirements);
 
         return dto;
     }

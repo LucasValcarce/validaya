@@ -68,6 +68,20 @@ public class DataInitializer implements CommandLineRunner {
             userRepository.save(testUser);
             log.info("Usuario de prueba creado: testuser@validaya.com (ID: 1234567)");
         }
+
+        if (!userRepository.existsByEmail("isabela@validaya.com")) {
+            User admin = User.builder()
+                    .email("isabela@validaya.com")
+                    .passwordHash(passwordEncoder.encode("testpass123"))
+                    .fullName("Isabela Ortiz")
+                    .identification("9876543")
+                    .userType(UserType.citizen)
+                    .isActive(true)
+                    .faceVerified(false)
+                    .build();
+            userRepository.save(admin);
+            log.info("Usuario admin creado: admin@validaya.com");
+        }
     }
 
     private void initDocumentTypes() {
