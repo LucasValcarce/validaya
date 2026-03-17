@@ -16,6 +16,7 @@ import com.validaya.validaya.service.PaymentService;
 import com.validaya.validaya.service.TicketService;
 import com.validaya.validaya.service.UserDocumentService;
 import com.validaya.validaya.utils.MapperUtil;
+import com.validaya.validaya.utils.QrUtil;
 import com.validaya.validaya.entity.UserDocument;
 import com.validaya.validaya.entity.enums.DocumentSource;
 import com.validaya.validaya.entity.enums.DocumentStatus;
@@ -46,6 +47,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final SterumPayService sterumPayService;
     private final NotificationService notificationService;
     private final SterumPayProperties sterumPayProperties;
+    private final QrUtil qrUtil;
 
     @Override
     @Transactional
@@ -92,6 +94,18 @@ public class PaymentServiceImpl implements PaymentService {
 
         payment = paymentRepository.save(payment);
         log.info("Payment record created: {}", payment.getId());
+
+        if (sterumPayProperties.isTesterEnabled()) {
+            payment.setPaymentStatus(PaymentStatus.tester);
+            String fakeQr = qrUtil.generatePayload("TEST-" + payment.getId(), app.getId(), "APP-" + app.getId());
+            payment.setQrCodeBase64(fakeQr);
+            payment.setPaymentLink("https://test.gateway/fake-payment/" + payment.getId());
+            payment.setGateway("STEREUM_PAY_TEST");
+            payment.setGatewayResponse(Map.of("status", "tester", "generated_at", LocalDateTime.now().toString()));
+            payment = paymentRepository.save(payment);
+            log.info("Tester payment generated: {} (fake QR)", payment.getId());
+            return MapperUtil.toInitiateResponse(payment);
+        }
 
         // Initiate charge with Stereum Pay
         try {
@@ -303,6 +317,14 @@ public class PaymentServiceImpl implements PaymentService {
                 .orElseThrow(() -> new EntityNotFoundException("Pago no encontrado"));
 
         try {
+            if (payment.getPaymentStatus() == PaymentStatus.tester) {
+                log.info("Tester payment verification for payment {}, auto-approving", paymentId);
+                processSuccessfulPayment(payment);
+                payment.setGatewayResponse(Map.of("status", "TESTER_APPROVED", "operation", "auto"));
+                payment = paymentRepository.save(payment);
+                return MapperUtil.toPaymentResponse(payment);
+            }
+
             SterumVerifyResponse response = sterumPayService.verificarTransaccion(payment.getTransactionId());
             updatePaymentStatus(payment, response.getStatus());
             payment.setGatewayResponse(convertToMap(response));
