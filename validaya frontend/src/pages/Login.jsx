@@ -163,7 +163,7 @@ export default function Login() {
           {/* Logo mobile */}
           <div className="lg:hidden mb-8 text-center">
             <span className="text-2xl font-black text-navy">
-              Docu<span className="text-teal">Track</span>
+              Valida<span className="text-teal">Ya</span>
             </span>
           </div>
 

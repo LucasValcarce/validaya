@@ -166,48 +166,142 @@ function StepVerificacion({ tramite, onAprobado, onRechazado }) {
    STEP 2 — PAGO QR
 ════════════════════════════════════════════════════ */
 function StepPago({ tramite, onPagado }) {
-  const [estadoPago, setEstadoPago] = useState('esperando') // 'esperando' | 'verificando' | 'completado'
-  const [segundos,   setSegundos]   = useState(300) // 5 min de expiración
-  const [polling,    setPolling]    = useState(true)
+  const [intento, setIntento] = useState(0)
+  const [fase,       setFase]       = useState('iniciando')  // 'iniciando' | 'esperando' | 'verificando' | 'completado' | 'error'
+  const [segundos,   setSegundos]   = useState(300)
+  const [errorMsg,   setErrorMsg]   = useState('')
+  const [qrSrc,      setQrSrc]      = useState(null)
+  const [paymentId,  setPaymentId]  = useState(null)
 
-  // TODO: GET /api/pagos/{tramiteId}/qr — obtener QR real del backend
-  // El backend lo obtiene de la API de billetera virtual (ej: Tigo Money, etc.)
-
-  // Cuenta regresiva del QR
+  // 1. Al montar: crear Application → crear Payment → mostrar QR
   useEffect(() => {
-    if (!polling) return
+    async function iniciarPago() {
+  try {
+    const user = JSON.parse(localStorage.getItem('auth_user') || '{}')
+    const userId = user.userId
+    console.log('[StepPago] userId:', userId, '| tramite.id:', tramite.id)
+    if (!userId) throw new Error('No se encontró el usuario en sesión')
+
+    const appBody = { procedureId: tramite.id }
+    console.log('[StepPago] POST /applications body:', JSON.stringify(appBody))
+
+    const appRes = await fetch(
+      `${import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'}/applications?userId=${userId}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        body: JSON.stringify(appBody),
+      }
+    )
+    const appJson = await appRes.json()
+    console.log('[StepPago] /applications status:', appRes.status, '| response:', appJson)
+
+    if (!appRes.ok) throw new Error(appJson.error || appJson.message || 'Error al crear solicitud')
+
+    const applicationId = appJson.data?.id
+    console.log('[StepPago] applicationId obtenido:', applicationId)
+    if (!applicationId) throw new Error('No se recibió ID de solicitud')
+
+    const payBody = { applicationId, paymentMethod: 'QR_CODE' }
+    console.log('[StepPago] POST /payments/create body:', JSON.stringify(payBody))
+
+    const payRes = await fetch(
+      `${import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'}/payments/create`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+        },
+        body: JSON.stringify(payBody),
+      }
+    )
+    const payJson = await payRes.json()
+    console.log('[StepPago] /payments/create status:', payRes.status, '| response:', payJson)
+
+    if (!payRes.ok) throw new Error(payJson.error || payJson.message || 'Error al generar pago')
+
+    const payment = payJson.data
+    console.log('[StepPago] payment completo:', payment)
+    setPaymentId(payment.id)
+
+    if (payment.gatewayUrl) {
+      const src = payment.gatewayUrl.startsWith('data:')
+        ? payment.gatewayUrl
+        : `data:image/png;base64,${payment.gatewayUrl}`
+      setQrSrc(src)
+    } else {
+      console.warn('[StepPago] gatewayUrl es null — no hay QR disponible')
+    }
+
+    setFase('esperando')
+  } catch (err) {
+    console.error('[StepPago] error al iniciar:', err)
+    setErrorMsg(err.message || 'Error al iniciar el pago')
+    setFase('error')
+  }
+}
+    iniciarPago()
+  }, [tramite.id, intento])
+
+  // 2. Countdown del QR
+  useEffect(() => {
+    if (fase !== 'esperando') return
     const t = setInterval(() => {
       setSegundos(s => {
-        if (s <= 1) { clearInterval(t); setPolling(false); return 0 }
+        if (s <= 1) { clearInterval(t); return 0 }
         return s - 1
       })
     }, 1000)
     return () => clearInterval(t)
-  }, [polling])
+  }, [fase])
 
-  // Polling de verificación de pago
-  // TODO: reemplazar con fetch real a GET /api/pagos/{tramiteId}/estado
+  // 3. Polling del estado de pago
   useEffect(() => {
-    if (!polling) return
-    const t = setInterval(() => {
-      // Simula que después de 8 segundos el pago llega
-      // En real: si res.estado === 'COMPLETADO' → llamar onPagado
+    if (fase !== 'esperando' || !paymentId) return
+    const t = setInterval(async () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'}/payments/${paymentId}/status`,
+          {
+            headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` },
+          }
+        )
+        const json = await res.json()
+        const status = json.data?.status
+        console.log('[StepPago] polling status:', status)
+
+        if (status === 'PAID' || status === 'paid' || status === 'COMPLETED' || status === 'completed') {
+          clearInterval(t)
+          setFase('verificando')
+          setTimeout(() => {
+            setFase('completado')
+            setTimeout(onPagado, 1200)
+          }, 1500)
+        }
+      } catch (err) {
+        console.error('[StepPago] polling error:', err)
+      }
     }, 3000)
     return () => clearInterval(t)
-  }, [polling])
+  }, [fase, paymentId, onPagado])
 
-  const simularPago = () => {
-    setEstadoPago('verificando')
-    // TODO: esto se reemplaza por el polling real del backend
-    setTimeout(() => {
-      setEstadoPago('completado')
-      setTimeout(onPagado, 1200)
-    }, 2000)
-  }
-
-  const minutos = Math.floor(segundos / 60)
-  const segs    = segundos % 60
   const expirado = segundos === 0
+  const minutos  = Math.floor(segundos / 60)
+  const segs     = segundos % 60
+
+  const handleRegenerarQR = () => {
+    setSegundos(300)
+    setFase('iniciando')
+    setQrSrc(null)
+    setPaymentId(null)
+    // Re-ejecuta el useEffect
+    setFase('iniciando')
+    setIntento(n => n + 1)   // ← dispara el useEffect
+  }
 
   return (
     <div className="max-w-lg mx-auto flex flex-col gap-5">
@@ -233,7 +327,7 @@ function StepPago({ tramite, onPagado }) {
           <h3 className="text-xs font-black uppercase tracking-wide text-gray-400">
             Código QR de pago
           </h3>
-          {!expirado && estadoPago === 'esperando' && (
+          {fase === 'esperando' && !expirado && (
             <span className={`text-xs font-bold px-2 py-1 rounded-full
               ${segundos < 60 ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'}`}>
               ⏱ {minutos}:{segs.toString().padStart(2, '0')}
@@ -242,12 +336,35 @@ function StepPago({ tramite, onPagado }) {
         </div>
 
         <div className="p-6 flex flex-col items-center gap-4">
-          {estadoPago === 'completado' ? (
-            <div className="w-48 h-48 rounded-2xl bg-emerald-50 border-2 border-emerald-300 flex flex-col items-center justify-center gap-2 animate-pop">
-              <span className="text-5xl">✅</span>
-              <p className="text-sm font-black text-emerald-700">¡Pago recibido!</p>
+
+          {/* Iniciando */}
+          {fase === 'iniciando' && (
+            <div className="w-48 h-48 rounded-2xl bg-gray-50 border-2 border-gray-200 flex flex-col items-center justify-center gap-3">
+              <svg className="w-10 h-10 text-teal animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              <p className="text-xs font-bold text-gray-400">Generando QR…</p>
             </div>
-          ) : estadoPago === 'verificando' ? (
+          )}
+
+          {/* QR activo */}
+          {fase === 'esperando' && qrSrc && !expirado && (
+            <div className="w-48 h-48 rounded-2xl border-2 border-gray-200 overflow-hidden">
+              <img src={qrSrc} alt="QR de pago" className="w-full h-full object-contain" />
+            </div>
+          )}
+
+          {/* Esperando sin QR (fallback) */}
+          {fase === 'esperando' && !qrSrc && !expirado && (
+            <div className="w-48 h-48 rounded-2xl bg-gray-50 border-2 border-gray-200 flex flex-col items-center justify-center gap-2">
+              <span className="text-4xl">💳</span>
+              <p className="text-xs font-bold text-gray-500 text-center px-4">QR no disponible — usa el enlace de pago</p>
+            </div>
+          )}
+
+          {/* Verificando pago */}
+          {fase === 'verificando' && (
             <div className="w-48 h-48 rounded-2xl bg-teal-light border-2 border-teal flex flex-col items-center justify-center gap-3">
               <svg className="w-10 h-10 text-teal animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -255,86 +372,76 @@ function StepPago({ tramite, onPagado }) {
               </svg>
               <p className="text-xs font-bold text-teal">Verificando pago…</p>
             </div>
-          ) : expirado ? (
+          )}
+
+          {/* Completado */}
+          {fase === 'completado' && (
+            <div className="w-48 h-48 rounded-2xl bg-emerald-50 border-2 border-emerald-300 flex flex-col items-center justify-center gap-2 animate-pop">
+              <span className="text-5xl">✅</span>
+              <p className="text-sm font-black text-emerald-700">¡Pago recibido!</p>
+            </div>
+          )}
+
+          {/* Expirado */}
+          {fase === 'esperando' && expirado && (
             <div className="w-48 h-48 rounded-2xl bg-gray-100 border-2 border-gray-300 flex flex-col items-center justify-center gap-2">
               <span className="text-5xl opacity-30">⏰</span>
               <p className="text-xs font-bold text-gray-500">QR expirado</p>
             </div>
-          ) : (
-            /* Placeholder QR — TODO: reemplazar con <img src={qrUrl} /> del backend */
-            <div className="w-48 h-48 bg-white border-2 border-gray-200 rounded-2xl p-3 relative overflow-hidden">
-              <div className="w-full h-full grid grid-cols-7 gap-0.5 opacity-80">
-                {Array.from({ length: 49 }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={`rounded-[1px] ${
-                      [0,1,2,3,4,5,6,7,13,14,20,21,27,28,34,35,41,42,43,44,45,46,47,48,
-                       8,15,22,29,36,24,16,32].includes(i)
-                        ? 'bg-navy'
-                        : Math.random() > 0.5 ? 'bg-navy' : 'bg-white'
-                    }`}
-                  />
-                ))}
-              </div>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-10 h-10 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-lg">
-                  💳
-                </div>
-              </div>
+          )}
+
+          {/* Error */}
+          {fase === 'error' && (
+            <div className="w-48 h-48 rounded-2xl bg-red-50 border-2 border-red-300 flex flex-col items-center justify-center gap-2 px-4 text-center">
+              <span className="text-4xl">❌</span>
+              <p className="text-xs font-bold text-red-600">{errorMsg}</p>
             </div>
           )}
 
-          {estadoPago === 'esperando' && !expirado && (
+          {fase === 'esperando' && !expirado && (
             <div className="text-center">
               <p className="text-xs font-bold text-navy">Escanea con tu billetera virtual</p>
-              <p className="text-[10px] text-gray-400 mt-1">Tigo Money · BancoSol · etc.</p>
+              <p className="text-[10px] text-gray-400 mt-1">Tigo Money · BancoSol · Stereum</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Info pago */}
-      {estadoPago === 'esperando' && !expirado && (
+      {/* Info */}
+      {fase === 'esperando' && !expirado && (
         <div className="flex items-start gap-3 px-4 py-3 bg-teal-light border border-teal/20 rounded-xl">
           <span className="flex-shrink-0 text-base">ℹ️</span>
           <p className="text-xs text-gray-600 leading-relaxed">
-            El QR se verifica automáticamente. Una vez realizado el pago, esta pantalla
-            avanzará sola al ticket. <strong className="text-navy">No cierres esta ventana.</strong>
+            El QR se verifica automáticamente. Una vez realizado el pago esta pantalla
+            avanzará sola. <strong className="text-navy">No cierres esta ventana.</strong>
           </p>
         </div>
       )}
 
-      {expirado && (
+      {fase === 'esperando' && expirado && (
         <div className="flex items-start gap-3 px-4 py-3 bg-red-50 border border-red-300 rounded-xl">
           <span className="flex-shrink-0 text-base">⏰</span>
-          <p className="text-xs text-red-700 leading-relaxed">
-            El QR expiró. Genera uno nuevo para continuar con el pago.
-          </p>
+          <p className="text-xs text-red-700 leading-relaxed">El QR expiró. Genera uno nuevo para continuar.</p>
         </div>
       )}
 
       {/* Acciones */}
-      {estadoPago === 'esperando' && (
-        <div className="flex gap-3">
-          {expirado ? (
-            <button
-              onClick={() => { setSegundos(300); setPolling(true) }}
-              className="w-full py-3 rounded-xl bg-teal text-white font-bold text-sm hover:bg-teal-hover transition-colors shadow-md"
-            >
-              Regenerar QR
-            </button>
-          ) : (
-            <>
-              {/* Botón de prueba — QUITAR cuando conectes el backend */}
-              <button
-                onClick={simularPago}
-                className="w-full py-3 rounded-xl bg-teal text-white font-bold text-sm hover:bg-teal-hover transition-colors shadow-md"
-              >
-                [DEV] Simular pago completado
-              </button>
-            </>
-          )}
-        </div>
+      {fase === 'esperando' && expirado && (
+        <button
+          onClick={handleRegenerarQR}
+          className="w-full py-3 rounded-xl bg-teal text-white font-bold text-sm hover:bg-teal-hover transition-colors shadow-md"
+        >
+          Regenerar QR
+        </button>
+      )}
+
+      {fase === 'error' && (
+        <button
+          onClick={handleRegenerarQR}
+          className="w-full py-3 rounded-xl bg-navy text-white font-bold text-sm hover:bg-navy-light transition-colors"
+        >
+          Reintentar
+        </button>
       )}
     </div>
   )

@@ -1,28 +1,48 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
+import { apiFetch } from '../services/apiService'
 
-const DOCS_ACTIVE = [
-  { id: 1, ico: '🪪', name: 'Cédula de Identidad',  meta: 'Vence: 2028',           badge: 'SEGIP verificado',  verified: true,  date: '12 Mar 2024', size: '1.2 MB' },
-  { id: 2, ico: '🏠', name: 'Cert. de Domicilio',   meta: 'Actualizado: Ene 2026', badge: null,                verified: false, date: '04 Ene 2026', size: '840 KB' },
-  { id: 3, ico: '📜', name: 'Cert. de Nacimiento',  meta: 'Emitido: SERECI',       badge: 'SERECI verificado', verified: true,  date: '01 Jun 2020', size: '2.1 MB' },
-  { id: 4, ico: '📸', name: 'Fotografía reciente',  meta: 'Subido: Feb 2026',      badge: null,                verified: false, date: '18 Feb 2026', size: '3.4 MB' },
-  { id: 5, ico: '💼', name: 'Cert. de Trabajo',     meta: 'Empresa XYZ · 2025',   badge: null,                verified: false, date: '10 Dic 2025', size: '620 KB' },
-]
+// Icono por nombre de documento (ya que no hay documentTypeCode en el DTO)
+const DOC_ICONS_BY_NAME = {
+  'Cédula de Identidad':           '🪪',
+  'Certificado de Nacimiento':     '📜',
+  'Certificado de Matrimonio':     '💍',
+  'Certificado de Defunción':      '⚰️',
+  'Pasaporte':                     '🛂',
+  'Licencia de Conducir':          '🚗',
+  'Título Universitario':          '🎓',
+  'Certificado de Domicilio':      '🏠',
+  'Certificado de Trabajo':        '💼',
+  'Extracto Bancario':             '💳',
+  'Fotografía Reciente':           '📸',
+  'Certificado de Seguro de Salud':'🛡️',
+}
 
-const DOCS_MISSING = [
-  { id: 10, ico: '🏦', name: 'Extracto Bancario',    hint: 'Obtenerlo via trámite bancario',       tramiteId: 'extracto-bancario'   },
-  { id: 11, ico: '💍', name: 'Cert. de Matrimonio',  hint: 'Obtenerlo via SERECI',                 tramiteId: 'cert-matrimonio'     },
-  { id: 12, ico: '🎓', name: 'Título Universitario', hint: 'Obtenerlo via institución educativa',  tramiteId: 'titulo-universitario'},
-]
+function mapUserDoc(doc) {
+  return {
+    id:        doc.id,
+    ico:       DOC_ICONS_BY_NAME[doc.documentTypeName] || '📄',
+    name:      doc.documentTypeName,
+    meta:      doc.expiryDate
+                 ? `Vence: ${new Date(doc.expiryDate).toLocaleDateString('es-BO', { year: 'numeric', month: 'short', day: '2-digit' })}`
+                 : doc.issueDate
+                   ? `Emitido: ${new Date(doc.issueDate).toLocaleDateString('es-BO', { year: 'numeric', month: 'short', day: '2-digit' })}`
+                   : '',
+    verified:  doc.verificationStatus === 'verified',
+    date:      doc.issueDate
+                 ? new Date(doc.issueDate).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric' })
+                 : '—',
+    status:    doc.status,       // viene como 'active', 'expired', etc.
+    docNumber: doc.documentNumber,
+  }
+}
 
 function DocCard({ doc, onPreview }) {
   return (
-    <div
+    <div onClick={() => onPreview(doc)}
       className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col gap-3
-        hover:border-teal hover:shadow-md transition-all cursor-pointer group relative"
-      onClick={() => onPreview(doc)}
-    >
+        hover:border-teal hover:shadow-md transition-all cursor-pointer group relative">
       {doc.verified && (
         <span className="absolute top-3 right-3 flex items-center gap-1 px-2 py-0.5
           rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-bold">
@@ -40,10 +60,8 @@ function DocCard({ doc, onPreview }) {
         )}
       </div>
       <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-        <span className="text-[10px] text-gray-400">{doc.date} · {doc.size}</span>
-        <span className="text-[10px] font-bold text-teal opacity-0 group-hover:opacity-100 transition-opacity">
-          Ver →
-        </span>
+        <span className="text-[10px] text-gray-400">{doc.date}</span>
+        <span className="text-[10px] font-bold text-teal opacity-0 group-hover:opacity-100 transition-opacity">Ver →</span>
       </div>
     </div>
   )
@@ -51,11 +69,9 @@ function DocCard({ doc, onPreview }) {
 
 function MissingCard({ doc, onObtener }) {
   return (
-    <div
+    <div onClick={() => onObtener(doc)}
       className="border-2 border-dashed border-gray-200 bg-gray-50/50 rounded-2xl p-4 flex flex-col gap-3
-        cursor-pointer transition-all hover:border-teal hover:bg-teal-light/30 group"
-      onClick={() => onObtener(doc)}
-    >
+        cursor-pointer transition-all hover:border-teal hover:bg-teal-light/30 group">
       <span className="text-3xl opacity-40">{doc.ico}</span>
       <div className="flex-1">
         <p className="text-sm font-bold text-gray-500">{doc.name}</p>
@@ -63,9 +79,7 @@ function MissingCard({ doc, onObtener }) {
       </div>
       <div className="flex items-center justify-between pt-2 border-t border-gray-200/60">
         <span className="text-[10px] text-gray-400">No obtenido</span>
-        <span className="text-[10px] font-bold text-teal opacity-0 group-hover:opacity-100 transition-opacity">
-          Obtener →
-        </span>
+        <span className="text-[10px] font-bold text-teal opacity-0 group-hover:opacity-100 transition-opacity">Obtener →</span>
       </div>
     </div>
   )
@@ -80,13 +94,11 @@ function PreviewModal({ doc, onClose }) {
             <span className="text-2xl">{doc.ico}</span>
             <div>
               <h3 className="font-black text-navy text-sm">{doc.name}</h3>
-              <p className="text-xs text-gray-400 mt-0.5">{doc.date} · {doc.size}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{doc.date}</p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200 transition-colors text-lg"
-          >
+          <button onClick={onClose}
+            className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 hover:bg-gray-200 transition-colors text-lg">
             ×
           </button>
         </div>
@@ -101,13 +113,9 @@ function PreviewModal({ doc, onClose }) {
 
           <div className="grid grid-cols-2 gap-2">
             {[
+              { label: 'N° Documento', val: doc.docNumber || '—' },
               { label: 'Fecha de obtención', val: doc.date },
-              { label: 'Tamaño',             val: doc.size },
-              {
-                label: 'Estado',
-                val:   doc.verified ? '✓ Verificado' : 'Pendiente',
-                color: doc.verified ? 'text-emerald-600' : 'text-amber-600',
-              },
+              { label: 'Estado', val: doc.verified ? '✓ Verificado' : 'Pendiente verificación', color: doc.verified ? 'text-emerald-600' : 'text-amber-600' },
               { label: 'Uso en trámites', val: 'Activo' },
             ].map(({ label, val, color }) => (
               <div key={label} className="bg-gray-50 rounded-xl px-3 py-2.5">
@@ -125,10 +133,8 @@ function PreviewModal({ doc, onClose }) {
               </svg>
               Descargar
             </button>
-            <button
-              onClick={onClose}
-              className="flex-1 py-3 rounded-xl bg-teal text-white font-bold text-sm hover:bg-teal-hover transition-colors"
-            >
+            <button onClick={onClose}
+              className="flex-1 py-3 rounded-xl bg-teal text-white font-bold text-sm hover:bg-teal-hover transition-colors">
               Cerrar
             </button>
           </div>
@@ -138,62 +144,120 @@ function PreviewModal({ doc, onClose }) {
   )
 }
 
+// Tipos de documentos que la plataforma puede emitir via trámites
+// Se comparan contra los que el usuario YA tiene para generar la sección "por obtener"
+const ALL_OBTAINABLE = [
+  { name: 'Extracto Bancario',             ico: '💳', hint: 'Obtenerlo via trámite bancario',       tramiteCode: 'extracto-bancario' },
+  { name: 'Certificado de Matrimonio',     ico: '💍', hint: 'Obtenerlo via SERECI',                 tramiteCode: 'cert-matrimonio'   },
+  { name: 'Título Universitario',          ico: '🎓', hint: 'Obtenerlo via institución educativa',  tramiteCode: null                },
+  { name: 'Certificado de Seguro de Salud',ico: '🛡️', hint: 'Obtenerlo via Seguros Bolivia',       tramiteCode: 'seguro-salud'      },
+]
+
 export default function Docs() {
   const navigate = useNavigate()
+  const [docs,          setDocs]          = useState([])
+  const [loading,       setLoading]       = useState(true)
+  const [error,         setError]         = useState('')
   const [previewTarget, setPreviewTarget] = useState(null)
 
+  useEffect(() => {
+  async function load() {
+    setLoading(true)
+    setError('')
+    try {
+      const data = await apiFetch('/user-documents')
+      console.log('[Docs] respuesta raw de /user-documents:', data)
+      console.log('[Docs] primer item (keys):', data?.[0] ? Object.keys(data[0]) : 'array vacío')
+      setDocs((data || []).map(mapUserDoc))
+    } catch (err) {
+      console.error('[Docs] error:', err)
+      setError(err.message || 'Error al cargar documentos')
+    } finally {
+      setLoading(false)
+    }
+  }
+  load()
+}, [])
+
+  const activeDocs = docs.filter(d => d.status === 'active')
+  const userNames   = new Set(activeDocs.map(d => d.name))
+const missingDocs = ALL_OBTAINABLE.filter(d => !userNames.has(d.name))
+
   const handleObtener = (doc) => {
-    // Navega a tramites con el tramiteId como query param para pre-seleccionarlo
-    navigate(`/tramites?doc=${doc.tramiteId}`)
+    if (doc.tramiteCode) navigate(`/tramites?doc=${doc.tramiteCode}`)
+    else navigate('/tramites')
   }
 
   return (
     <Layout title="📁 Repositorio de documentos">
 
-      {/* Info banner */}
       <div className="flex items-start gap-3 px-4 py-3 bg-teal-light border border-teal/25 rounded-xl mb-6">
         <span className="text-lg flex-shrink-0">ℹ️</span>
         <p className="text-xs text-gray-600 leading-relaxed">
-          Los documentos se obtienen a través de los <strong className="text-navy">trámites con instituciones</strong>.
+          Los documentos se obtienen a través de <strong className="text-navy">trámites con instituciones</strong>.
           Una vez verificados, quedan disponibles aquí automáticamente.
         </p>
       </div>
 
-      {/* Active docs */}
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-sm font-black text-navy">
-          Obtenidos <span className="text-gray-400 font-semibold">({DOCS_ACTIVE.length})</span>
-        </h2>
-        <span className="text-xs text-teal font-bold">
-          {DOCS_ACTIVE.length}/{DOCS_ACTIVE.length + DOCS_MISSING.length} completados
-        </span>
-      </div>
+      {loading && (
+        <div className="flex items-center justify-center py-20 gap-3">
+          <svg className="w-6 h-6 animate-spin text-teal" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <p className="text-sm text-gray-400">Cargando documentos…</p>
+        </div>
+      )}
 
-      {/* Progress bar */}
-      <div className="w-full h-1.5 bg-gray-200 rounded-full mb-5 overflow-hidden">
-        <div
-          className="h-full bg-teal rounded-full transition-all duration-500"
-          style={{ width: `${(DOCS_ACTIVE.length / (DOCS_ACTIVE.length + DOCS_MISSING.length)) * 100}%` }}
-        />
-      </div>
+      {error && !loading && (
+        <div className="flex items-start gap-3 px-4 py-4 bg-red-50 border border-red-300 rounded-xl mb-4">
+          <span className="text-red-500">⚠</span>
+          <p className="text-sm text-red-600">{error}</p>
+        </div>
+      )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 mb-8">
-        {DOCS_ACTIVE.map(doc => (
-          <DocCard key={doc.id} doc={doc} onPreview={setPreviewTarget} />
-        ))}
-      </div>
-
-      {/* Missing docs */}
-      {DOCS_MISSING.length > 0 && (
+      {!loading && !error && (
         <>
-          <h2 className="text-sm font-black text-navy mb-3">
-            Por obtener <span className="text-gray-400 font-semibold">({DOCS_MISSING.length})</span>
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {DOCS_MISSING.map(doc => (
-              <MissingCard key={doc.id} doc={doc} onObtener={handleObtener} />
-            ))}
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-black text-navy">
+              Obtenidos <span className="text-gray-400 font-semibold">({activeDocs.length})</span>
+            </h2>
+            <span className="text-xs text-teal font-bold">
+              {activeDocs.length}/{activeDocs.length + missingDocs.length} completados
+            </span>
           </div>
+
+          <div className="w-full h-1.5 bg-gray-200 rounded-full mb-5 overflow-hidden">
+            <div className="h-full bg-teal rounded-full transition-all duration-500"
+              style={{ width: `${activeDocs.length + missingDocs.length > 0 ? (activeDocs.length / (activeDocs.length + missingDocs.length)) * 100 : 0}%` }} />
+          </div>
+
+          {activeDocs.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 mb-8">
+              {activeDocs.map(doc => (
+                <DocCard key={doc.id} doc={doc} onPreview={setPreviewTarget} />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-10 mb-8">
+              <div className="text-4xl mb-2">📭</div>
+              <p className="text-sm font-bold text-navy">Sin documentos aún</p>
+              <p className="text-xs text-gray-400 mt-1">Inicia un trámite para obtener tu primer documento</p>
+            </div>
+          )}
+
+          {missingDocs.length > 0 && (
+            <>
+              <h2 className="text-sm font-black text-navy mb-3">
+                Por obtener <span className="text-gray-400 font-semibold">({missingDocs.length})</span>
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+                {missingDocs.map(doc => (
+                    <MissingCard key={doc.name} doc={doc} onObtener={handleObtener} />
+                ))}
+              </div>
+            </>
+          )}
         </>
       )}
 
