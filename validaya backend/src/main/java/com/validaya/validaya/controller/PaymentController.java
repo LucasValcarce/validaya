@@ -19,14 +19,13 @@ import org.springframework.web.bind.annotation.*;
 public class PaymentController {
 
     private final PaymentService paymentService;
-    private final SterumPayProperties sterumPayProperties;
 
     @PostMapping("/create")
-    public ResponseEntity<ApiResponse<PaymentDto.Response>> createPayment(
+    public ResponseEntity<ApiResponse<PaymentDto.InitiateResponse>> createPayment(
             @Valid @RequestBody PaymentDto.InitiateRequest request) {
         log.info("Received payment creation request for application: {}", request.getApplicationId());
         
-        PaymentDto.Response response = paymentService.initiate(request);
+        PaymentDto.InitiateResponse response = paymentService.initiate(request);
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 

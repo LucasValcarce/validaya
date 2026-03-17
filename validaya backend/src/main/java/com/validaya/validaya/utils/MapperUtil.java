@@ -235,6 +235,21 @@ public class MapperUtil {
         return dto;
     }
 
+    public static PaymentDto.InitiateResponse toInitiateResponse(Payment payment) {
+        PaymentDto.InitiateResponse dto = new PaymentDto.InitiateResponse();
+        dto.setId(payment.getId());
+        dto.setApplicationId(payment.getApplication().getId());
+        dto.setApplicationNumber("APP-" + payment.getApplication().getId());
+        dto.setTransactionId(payment.getTransactionId());
+        dto.setAmount(payment.getAmount());
+        dto.setPlatformFee(payment.getPlatformFee());
+        dto.setInstitutionAmount(payment.getInstitutionAmount());
+        dto.setStatus(payment.getPaymentStatus());
+        dto.setQr_base64(payment.getQrCodeBase64());
+
+        return dto;
+    }
+
     // ── Ticket ────────────────────────────────────────────────────────────
     public static TicketDto.Response toTicketResponse(Ticket ticket) {
         TicketDto.Response dto = new TicketDto.Response();
