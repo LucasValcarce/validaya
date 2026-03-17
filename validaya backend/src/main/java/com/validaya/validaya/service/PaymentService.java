@@ -14,7 +14,7 @@ public interface PaymentService {
      * @param request payment initiation request
      * @return payment response with transaction details
      */
-    PaymentDto.Response initiate(PaymentDto.InitiateRequest request);
+    PaymentDto.InitiateResponse initiate(PaymentDto.InitiateRequest request);
 
     /**
      * Retrieves payment by application ID.

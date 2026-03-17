@@ -35,6 +35,19 @@ public class PaymentDto {
     }
 
     @Data
+    public static class InitiateResponse {
+        private Long id;
+        private Long applicationId;
+        private String applicationNumber;
+        private String transactionId;
+        private BigDecimal amount;
+        private BigDecimal platformFee;
+        private BigDecimal institutionAmount;
+        private PaymentStatus status;
+        private String qr_base64;
+    }
+
+    @Data
     public static class GatewayCallback {
         private String transactionId;
         private String externalReference;

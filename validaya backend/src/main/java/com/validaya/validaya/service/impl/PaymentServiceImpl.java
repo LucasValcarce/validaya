@@ -49,7 +49,7 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
-    public PaymentDto.Response initiate(PaymentDto.InitiateRequest request) {
+    public PaymentDto.InitiateResponse initiate(PaymentDto.InitiateRequest request) {
         log.info("Initiating payment for application: {}", request.getApplicationId());
 
         // Retrieve application
@@ -88,7 +88,6 @@ public class PaymentServiceImpl implements PaymentService {
                 .paymentMethod(request.getPaymentMethod())
                 .paymentStatus(PaymentStatus.pending)
                 .gateway("STEREUM_PAY")
-                .idempotencyKey(idempotencyKey)
                 .build();
 
         payment = paymentRepository.save(payment);
@@ -164,7 +163,7 @@ public class PaymentServiceImpl implements PaymentService {
             throw new RuntimeException("No se pudo procesar el pago: " + e.getMessage());
         }
 
-        return MapperUtil.toPaymentResponse(payment);
+        return MapperUtil.toInitiateResponse(payment);
     }
 
     @Override
