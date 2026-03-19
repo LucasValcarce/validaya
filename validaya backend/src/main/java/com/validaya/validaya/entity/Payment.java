@@ -51,9 +51,6 @@ public class Payment {
     @Column(length = 100)
     private String gateway;
 
-    @Column(name = "idempotency_key", length = 255, unique = true)
-    private String idempotencyKey;
-
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "gateway_response", columnDefinition = "jsonb")
     private Map<String, Object> gatewayResponse;

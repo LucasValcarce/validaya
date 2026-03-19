@@ -40,4 +40,6 @@ public class SterumPayProperties {
     private String defaultNetwork = "POLYGON";
 
     private String defaultBlockchainCurrency = "USDT";
+
+    private boolean testerEnabled = false;
 }
