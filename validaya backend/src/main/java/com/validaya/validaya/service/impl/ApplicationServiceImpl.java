@@ -155,7 +155,16 @@ public class ApplicationServiceImpl implements ApplicationService {
         // Obtener documentos del usuario
         List<UserDocument> userDocuments = userDocumentRepository.findByUserId(user.getId());
         Map<Long, UserDocument> userDocMap = userDocuments.stream()
-                .collect(Collectors.toMap(doc -> doc.getDocumentType().getId(), doc -> doc));
+                .collect(Collectors.toMap(
+                        doc -> doc.getDocumentType().getId(),
+                        doc -> doc,
+                        (existing, incoming) -> {
+                            if (existing.getCreatedAt() != null && incoming.getCreatedAt() != null) {
+                                return existing.getCreatedAt().isAfter(incoming.getCreatedAt()) ? existing : incoming;
+                            }
+                            return existing;
+                        }
+                ));
 
         // Construir respuesta de validación
         ApplicationDto.DocumentValidationResponse response = new ApplicationDto.DocumentValidationResponse();
