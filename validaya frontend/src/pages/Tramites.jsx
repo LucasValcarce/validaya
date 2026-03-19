@@ -17,6 +17,7 @@ const INST_ICONS = {
 function mapProcedure(proc, userDocNames) {
   return {
     id:                  proc.id,
+    institutionId:       proc.institutionId,
     backendCode:         proc.slug,                    // ← slug, no code (ProcedureDto no tiene code)
     ico:                 INST_ICONS[proc.institutionName] || '📄',
     nombre:              proc.name,

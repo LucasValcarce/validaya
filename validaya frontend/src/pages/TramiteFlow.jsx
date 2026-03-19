@@ -80,7 +80,10 @@ function StepVerificacion({ tramite, onAprobado, onRechazado }) {
         </div>
         <ul className="divide-y divide-gray-100">
           {tramite.requiere.map((req, idx) => {
-            const verificado = docsVerificados.find(d => d.id === req.id)
+            const verificado = estado !== 'verificando' 
+            ? req 
+            : docsVerificados.find(d => d?.id === req.id)
+            
             const enProceso  = docsVerificados.length === idx && estado === 'verificando'
 
             return (
@@ -176,13 +179,23 @@ function StepPago({ tramite, onPagado }) {
   // 1. Al montar: crear Application → crear Payment → mostrar QR
   useEffect(() => {
     async function iniciarPago() {
-  try {
+      try {
     const user = JSON.parse(localStorage.getItem('auth_user') || '{}')
     const userId = user.userId
-    console.log('[StepPago] userId:', userId, '| tramite.id:', tramite.id)
+    //console.log('[StepPago] userId:', userId, '| tramite.id:', tramite.id)
     if (!userId) throw new Error('No se encontró el usuario en sesión')
-
-    const appBody = { procedureId: tramite.id }
+    
+    // Obtener branches de la institución del trámite para conseguir branchId
+    const branchRes = await fetch(
+      `${import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'}/branches/institution/${tramite.institutionId}`,
+      { headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` } }
+    )
+    const branchJson = await branchRes.json()
+    console.log('[StepPago] branches:', branchJson)
+    const branchId = branchJson.data?.[0]?.id
+    if (!branchId) throw new Error('No se encontró sucursal disponible para este trámite')  
+      
+    const appBody = { procedureId: tramite.id, institutionId: tramite.institutionId, branchId}
     console.log('[StepPago] POST /applications body:', JSON.stringify(appBody))
 
     const appRes = await fetch(
@@ -205,7 +218,7 @@ function StepPago({ tramite, onPagado }) {
     console.log('[StepPago] applicationId obtenido:', applicationId)
     if (!applicationId) throw new Error('No se recibió ID de solicitud')
 
-    const payBody = { applicationId, paymentMethod: 'QR_CODE' }
+    const payBody = { applicationId, paymentMethod: 'qr' }
     console.log('[StepPago] POST /payments/create body:', JSON.stringify(payBody))
 
     const payRes = await fetch(
@@ -228,13 +241,13 @@ function StepPago({ tramite, onPagado }) {
     console.log('[StepPago] payment completo:', payment)
     setPaymentId(payment.id)
 
-    if (payment.gatewayUrl) {
-      const src = payment.gatewayUrl.startsWith('data:')
-        ? payment.gatewayUrl
-        : `data:image/png;base64,${payment.gatewayUrl}`
+    if (payment.qr_base64) {
+      const src = payment.qr_base64.startsWith('data:')
+        ? payment.qr_base64
+        : `data:image/png;base64,${payment.qr_base64}`
       setQrSrc(src)
     } else {
-      console.warn('[StepPago] gatewayUrl es null — no hay QR disponible')
+      console.warn('[StepPago] qr_base64 es null — no hay QR disponible')
     }
 
     setFase('esperando')
