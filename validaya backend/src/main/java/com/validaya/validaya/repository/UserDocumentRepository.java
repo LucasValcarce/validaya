@@ -20,4 +20,7 @@ public interface UserDocumentRepository extends JpaRepository<UserDocument, Long
             Long userId, Long documentTypeId, DocumentStatus status);
 
     List<UserDocument> findByUserIdAndVerificationStatus(Long userId, VerificationStatus verificationStatus);
+
+    // UserDocumentRepository
+    Optional<UserDocument> findByUserIdAndDocumentTypeCode(Long userId, String documentTypeCode);
 }
