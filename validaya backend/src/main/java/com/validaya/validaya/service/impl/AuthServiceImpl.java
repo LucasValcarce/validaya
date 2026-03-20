@@ -123,6 +123,8 @@ public class AuthServiceImpl implements AuthService {
         response.setEmail(user.getEmail());
         response.setFullName(user.getFullName());
         response.setUserType(user.getUserType().name());
+        response.setIdentification(user.getIdentification());
+        response.setPhoneNumber(user.getPhone());
         response.setPasswordSet(true);
 
         user.setFaceVerified(true);
@@ -193,6 +195,8 @@ public class AuthServiceImpl implements AuthService {
         response.setEmail(user.getEmail());
         response.setFullName(user.getFullName());
         response.setUserType(user.getUserType().name());
+        response.setIdentification(user.getIdentification());
+        response.setPhoneNumber(user.getPhone());
         response.setPasswordSet(true);
 
         return response;
