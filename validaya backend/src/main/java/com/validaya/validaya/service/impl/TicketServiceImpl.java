@@ -13,6 +13,7 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,9 +73,17 @@ public class TicketServiceImpl implements TicketService {
                 .expiryAt(LocalDateTime.now().plusDays(validTimeTicket))
                 .build();
 
-        ticket = ticketRepository.save(ticket);
-        log.info("Ticket generado: {} para solicitud: {}", ticketCode, applicationId);
-        return MapperUtil.toTicketResponse(ticket);
+        try {
+            ticket = ticketRepository.save(ticket);
+            log.info("Ticket generado: {} para solicitud: {}", ticketCode, applicationId);
+            return MapperUtil.toTicketResponse(ticket);
+        } catch (DataIntegrityViolationException e) {
+            log.warn("Error de integridad al generar ticket para solicitud {}. Reintentar lectura existente.", applicationId, e);
+            Ticket existing = ticketRepository.findByApplicationId(applicationId)
+                    .orElseThrow(() -> new IllegalStateException("No se pudo crear ni recuperar ticket para solicitud " + applicationId, e));
+            return MapperUtil.toTicketResponse(existing);
+        }
+
     }
 
     @Override
