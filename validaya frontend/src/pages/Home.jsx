@@ -9,16 +9,19 @@ const TRAMITES = [
 ]
 
 const STATUS_BADGE = {
-  ready:    { label: 'Listo ✓',     cls: 'bg-emerald-100 text-emerald-700' },
-  missing1: { label: '1 pendiente', cls: 'bg-amber-100 text-amber-700'    },
-  missing2: { label: '2 pendientes',cls: 'bg-red-100 text-red-600'        },
+  ready:    { label: 'Listo ✓',      cls: 'bg-emerald-100 text-emerald-700' },
+  missing1: { label: '1 pendiente',  cls: 'bg-amber-100 text-amber-700'    },
+  missing2: { label: '2 pendientes', cls: 'bg-red-100 text-red-600'        },
 }
 
 export default function Home() {
   const navigate = useNavigate()
 
+  const user    = JSON.parse(localStorage.getItem('auth_user') || '{}')
+  const nombre  = (user.nombre || user.name || user.fullName || 'Usuario').split(' ')[0]
+
   return (
-    <Layout title="👋 Bienvenido, Juan">
+    <Layout title={`👋 Bienvenido, ${nombre}`}>
 
       {/* Alert */}
       <div className="flex items-start sm:items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-400 rounded-xl mb-5">
@@ -37,9 +40,9 @@ export default function Home() {
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-5">
         {[
-          { ico: '📄', label: 'Documentos obtenidos', val: '5/8', sub: '3 por obtener',    color: 'text-navy'        },
-          { ico: '🔄', label: 'En proceso',            val: '1',  sub: 'Pago pendiente',   color: 'text-amber-500'   },
-          { ico: '✅', label: 'Trámites completados',  val: '3',  sub: 'Este año',          color: 'text-emerald-500' },
+          { ico: '📄', label: 'Documentos obtenidos', val: '5/8', sub: '3 por obtener',  color: 'text-navy'        },
+          { ico: '🔄', label: 'En proceso',            val: '1',  sub: 'Pago pendiente', color: 'text-amber-500'   },
+          { ico: '✅', label: 'Trámites completados',  val: '3',  sub: 'Este año',        color: 'text-emerald-500' },
         ].map(({ ico, label, val, sub, color }) => (
           <div key={label} className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5">
             <div className="text-xl mb-2">{ico}</div>

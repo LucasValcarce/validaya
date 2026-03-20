@@ -1,14 +1,19 @@
 import Layout from '../components/Layout'
 
 export default function Perfil() {
-  // TODO: conectar con los datos reales del backend (usuario logueado)
+  const userRaw = JSON.parse(localStorage.getItem('auth_user') || '{}')
+
   const usuario = {
-    nombre: 'Juan Mamani',
-    ci: '12345678',
-    correo: 'juan.mamani@example.com',
-    telefono: '+591 70000000',
-    ciudad: 'La Paz',
-  }
+  nombre:   userRaw.fullName       || '—',
+  ci:       userRaw.identification || '—',
+  correo:   userRaw.email          || '—',
+  telefono: userRaw.phone          || '—',
+  ciudad:   '—',  // no existe en el DTO del backend
+}
+
+  const initials = usuario.nombre !== '—'
+    ? usuario.nombre.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase()
+    : 'U'
 
   return (
     <Layout title="👤 Mi perfil">
@@ -16,7 +21,7 @@ export default function Perfil() {
       {/* Encabezado */}
       <div className="bg-white border border-gray-200 rounded-2xl p-5 mb-6 flex items-center gap-4">
         <div className="w-14 h-14 rounded-full bg-teal flex items-center justify-center text-white font-black text-lg flex-shrink-0">
-          JM
+          {initials}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-black text-navy truncate">{usuario.nombre}</p>
@@ -35,61 +40,25 @@ export default function Perfil() {
           <h2 className="text-sm font-black text-navy mb-4">Datos personales</h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">
-                Nombre completo
-              </label>
-              <input
-                type="text"
-                value={usuario.nombre}
-                readOnly
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-navy"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">
-                Cédula de Identidad
-              </label>
-              <input
-                type="text"
-                value={usuario.ci}
-                readOnly
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-navy"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">
-                Correo electrónico
-              </label>
-              <input
-                type="email"
-                value={usuario.correo}
-                readOnly
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-navy"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">
-                Teléfono
-              </label>
-              <input
-                type="tel"
-                value={usuario.telefono}
-                readOnly
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-navy"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">
-                Ciudad
-              </label>
-              <input
-                type="text"
-                value={usuario.ciudad}
-                readOnly
-                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-navy"
-              />
-            </div>
+            {[
+              { label: 'Nombre completo',    value: usuario.nombre   },
+              { label: 'Cédula de Identidad', value: usuario.ci      },
+              { label: 'Correo electrónico', value: usuario.correo   },
+              { label: 'Teléfono',           value: usuario.telefono },
+              { label: 'Ciudad',             value: usuario.ciudad   },
+            ].map(({ label, value }) => (
+              <div key={label}>
+                <label className="block text-[11px] font-bold uppercase tracking-wide text-gray-400 mb-1.5">
+                  {label}
+                </label>
+                <input
+                  type="text"
+                  value={value}
+                  readOnly
+                  className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm text-navy"
+                />
+              </div>
+            ))}
           </div>
 
           <p className="text-[11px] text-gray-400 mt-4">
@@ -104,9 +73,7 @@ export default function Perfil() {
             <ul className="flex flex-col gap-2">
               <li className="flex items-center justify-between text-xs text-gray-600">
                 <span>Contraseña</span>
-                <button className="text-teal text-[11px] font-bold hover:underline">
-                  Cambiar
-                </button>
+                <button className="text-teal text-[11px] font-bold hover:underline">Cambiar</button>
               </li>
               <li className="flex items-center justify-between text-xs text-gray-600">
                 <span>Biometría facial</span>
@@ -140,6 +107,3 @@ export default function Perfil() {
     </Layout>
   )
 }
-
-
-

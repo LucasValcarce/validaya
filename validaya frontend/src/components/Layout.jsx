@@ -31,7 +31,16 @@ export default function Layout({ title, actions, children }) {
   const location        = useLocation()
   const [open, setOpen] = useState(false)
 
-  const handleLogout = () => navigate('/login', { replace: true })
+  const user     = JSON.parse(localStorage.getItem('auth_user') || '{}')
+  const nombre   = user.fullName || 'Usuario'
+  const ci       = user.identification || '—'
+  const initials = nombre.split(' ').slice(0, 2).map(n => n[0]).join('').toUpperCase() || 'U'
+
+  const handleLogout = () => {
+    localStorage.removeItem('auth_token')
+    localStorage.removeItem('auth_user')
+    navigate('/login', { replace: true })
+  }
 
   return (
     <div className="min-h-screen bg-[#F7F9FC] flex">
@@ -84,11 +93,11 @@ export default function Layout({ title, actions, children }) {
 
         <div className="px-4 py-4 border-t border-white/[0.08] flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-teal flex items-center justify-center text-white font-black text-xs flex-shrink-0">
-            JM
+            {initials}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-white text-xs font-bold truncate">Juan Mamani</p>
-            <p className="text-white/35 text-[10px]">CI: 12345678</p>
+            <p className="text-white text-xs font-bold truncate">{nombre}</p>
+            <p className="text-white/35 text-[10px]">CI: {ci}</p>
           </div>
           <button
             onClick={handleLogout}
@@ -128,7 +137,7 @@ export default function Layout({ title, actions, children }) {
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500 border border-white" />
             </button>
             <div className="w-9 h-9 rounded-full bg-teal flex items-center justify-center text-white font-black text-xs">
-              JM
+              {initials}
             </div>
           </div>
         </header>

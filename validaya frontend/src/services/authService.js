@@ -68,13 +68,15 @@ export async function logout(token) {
 }
 
 export function saveSession(authResponse) {
-  console.log('[saveSession] guardando:', { userId: authResponse.userId, fullName: authResponse.fullName, passwordSet: authResponse.passwordSet })
+  console.log('[saveSession] guardando:', { userId: authResponse.userId, fullName: authResponse.fullName, passwordSet: authResponse.passwordSet,  })
   localStorage.setItem('auth_token', authResponse.token)
   localStorage.setItem('auth_user', JSON.stringify({
     userId:   authResponse.userId,
     fullName: authResponse.fullName,
     email:    authResponse.email,
     userType: authResponse.userType,
+    identification: authResponse.identification,
+    phone:          authResponse.phone,
   }))
 }
 
