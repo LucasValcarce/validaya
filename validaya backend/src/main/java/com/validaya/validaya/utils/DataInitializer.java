@@ -269,7 +269,7 @@ public class DataInitializer implements CommandLineRunner {
             Procedure extractoProc = createProcedure(banco, "Extracto Bancario",
                     "extracto-bancario", new BigDecimal("0"), new BigDecimal("0"), 0, extracto);
             Procedure cuentaProc   = createProcedure(banco, "Apertura de Cuenta Bancaria",
-                    "apertura-cuenta", new BigDecimal("0"), new BigDecimal("3"), 1, null);
+                    "apertura-cuenta", new BigDecimal("0"), new BigDecimal("3"), 1, extracto);
 
             if (ci != null)       saveProcReqIfAbsent(extractoProc, ci, true, "Cédula de Identidad vigente", 1);
             if (ci != null)       saveProcReqIfAbsent(cuentaProc, ci, true, "Cédula de Identidad vigente", 1);
