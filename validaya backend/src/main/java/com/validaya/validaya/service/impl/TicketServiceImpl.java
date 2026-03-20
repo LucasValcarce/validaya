@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 
 @Slf4j
@@ -54,9 +55,10 @@ public class TicketServiceImpl implements TicketService {
         Application app = applicationRepository.findById(applicationId)
                 .orElseThrow(() -> new EntityNotFoundException("Solicitud no encontrada: " + applicationId));
 
-        // Verificar que no exista ya un ticket
-        if (ticketRepository.findByApplicationId(applicationId).isPresent()) {
-            throw new IllegalStateException("Ya existe un ticket para esta solicitud");
+        Optional<Ticket> existingTicket = ticketRepository.findByApplicationId(applicationId);
+        if (existingTicket.isPresent()) {
+            log.info("Ticket ya existe para solicitud {}: {}", applicationId, existingTicket.get().getTicketCode());
+            return MapperUtil.toTicketResponse(existingTicket.get());
         }
 
         String ticketCode = generateUniqueCode();
