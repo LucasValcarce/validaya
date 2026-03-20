@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -75,13 +76,16 @@ public class TicketServiceImpl implements TicketService {
 
         try {
             ticket = ticketRepository.save(ticket);
+            ticketRepository.flush();
             log.info("Ticket generado: {} para solicitud: {}", ticketCode, applicationId);
             return MapperUtil.toTicketResponse(ticket);
         } catch (DataIntegrityViolationException e) {
             log.warn("Error de integridad al generar ticket para solicitud {}. Reintentar lectura existente.", applicationId, e);
-            Ticket existing = ticketRepository.findByApplicationId(applicationId)
-                    .orElseThrow(() -> new IllegalStateException("No se pudo crear ni recuperar ticket para solicitud " + applicationId, e));
-            return MapperUtil.toTicketResponse(existing);
+            Ticket existing = loadTicketByApplicationIdNewTransaction(applicationId);
+            if (existing != null) {
+                return MapperUtil.toTicketResponse(existing);
+            }
+            throw new IllegalStateException("No se pudo crear ni recuperar ticket para solicitud " + applicationId, e);
         }
 
     }
@@ -99,6 +103,11 @@ public class TicketServiceImpl implements TicketService {
     private Ticket findOrThrow(Long id) {
         return ticketRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Ticket no encontrado: " + id));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    protected Ticket loadTicketByApplicationIdNewTransaction(Long applicationId) {
+        return ticketRepository.findByApplicationId(applicationId).orElse(null);
     }
 
     private String generateUniqueCode() {
