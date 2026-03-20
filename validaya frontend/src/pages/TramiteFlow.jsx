@@ -376,10 +376,10 @@ function StepPago({ tramite, onPagado }) {
    STEP 3 — TICKET
 ════════════════════════════════════════════════════ */
 function StepTicket({ tramite, applicationId }) {
-  const navigate             = useNavigate()
-  const [ticket,   setTicket]   = useState(null)
-  const [loading,  setLoading]  = useState(true)
-  const [error,    setError]    = useState('')
+  const navigate            = useNavigate()
+  const [ticket,  setTicket]  = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState('')
 
   const BASE  = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'
   const token = () => localStorage.getItem('auth_token')
@@ -396,13 +396,17 @@ function StepTicket({ tramite, applicationId }) {
         return
       }
       try {
-        // Genera el ticket
-        await fetch(`${BASE}/tickets/application/${applicationId}`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token()}` },
-        })
+        // Genera el ticket — si ya existe (409) no importa, continuamos
+        try {
+          await fetch(`${BASE}/tickets/application/${applicationId}`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token()}` },
+          })
+        } catch {
+          // Ticket ya existía, ignoramos el error
+        }
 
-        // Lo obtiene
+        // Siempre obtenemos el ticket
         const res  = await fetch(`${BASE}/tickets/application/${applicationId}`,
           { headers: { Authorization: `Bearer ${token()}` } })
         const json = await res.json()
@@ -479,10 +483,10 @@ function StepTicket({ tramite, applicationId }) {
 
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: 'N° Ticket',    val: ticketCode,         highlight: true  },
-              { label: 'Institución',  val: tramite.institucion, highlight: false },
-              { label: 'Fecha',        val: fechaHoy,            highlight: false },
-              { label: 'Monto pagado', val: tramite.precio,      highlight: false },
+              { label: 'N° Ticket',    val: ticketCode,          highlight: true  },
+              { label: 'Institución',  val: tramite.institucion,  highlight: false },
+              { label: 'Fecha',        val: fechaHoy,             highlight: false },
+              { label: 'Monto pagado', val: tramite.precio,       highlight: false },
             ].map(({ label, val, highlight }) => (
               <div key={label} className={`rounded-xl px-3 py-2.5 ${highlight ? 'bg-teal-light' : 'bg-gray-50'}`}>
                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wide">{label}</p>
@@ -496,7 +500,7 @@ function StepTicket({ tramite, applicationId }) {
           <div className="flex items-center gap-4">
             <div className="w-20 h-20 flex-shrink-0 rounded-xl overflow-hidden border border-gray-200 bg-white">
               {qrPayload
-                ? <QrImage data={qrPayload} size={80} className="w-full h-full object-contain" />
+                ? <QrImage data={qrPayload} size={160} className="w-full h-full object-contain" />
                 : <div className="w-full h-full bg-gray-100 flex items-center justify-center">
                     <svg className="w-5 h-5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
