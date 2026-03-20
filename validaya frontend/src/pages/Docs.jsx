@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { apiFetch } from '../services/apiService'
 
-// Icono por nombre de documento (ya que no hay documentTypeCode en el DTO)
 const DOC_ICONS_BY_NAME = {
   'Cédula de Identidad':           '🪪',
   'Certificado de Nacimiento':     '📜',
@@ -33,7 +32,7 @@ function mapUserDoc(doc) {
     date:      doc.issueDate
                  ? new Date(doc.issueDate).toLocaleDateString('es-BO', { day: '2-digit', month: 'short', year: 'numeric' })
                  : '—',
-    status:    doc.status,       // viene como 'active', 'expired', etc.
+    status:    doc.status,
     docNumber: doc.documentNumber,
   }
 }
@@ -53,11 +52,6 @@ function DocCard({ doc, onPreview }) {
       <div className="flex-1">
         <p className="text-sm font-bold text-navy leading-tight pr-16">{doc.name}</p>
         <p className="text-xs text-gray-400 mt-1">{doc.meta}</p>
-        {doc.badge && (
-          <span className="inline-block mt-1.5 px-2 py-0.5 rounded-full bg-teal-light text-teal text-[10px] font-bold">
-            {doc.badge}
-          </span>
-        )}
       </div>
       <div className="flex items-center justify-between pt-2 border-t border-gray-100">
         <span className="text-[10px] text-gray-400">{doc.date}</span>
@@ -69,7 +63,7 @@ function DocCard({ doc, onPreview }) {
 
 function MissingCard({ doc, onObtener }) {
   return (
-    <div onClick={() => onObtener(doc)}
+    <div onClick={() => onObtener()}
       className="border-2 border-dashed border-gray-200 bg-gray-50/50 rounded-2xl p-4 flex flex-col gap-3
         cursor-pointer transition-all hover:border-teal hover:bg-teal-light/30 group">
       <span className="text-3xl opacity-40">{doc.ico}</span>
@@ -102,7 +96,6 @@ function PreviewModal({ doc, onClose }) {
             ×
           </button>
         </div>
-
         <div className="px-5 py-5 flex flex-col gap-3">
           <div className="w-full aspect-[3/4] max-h-64 bg-gray-50 border border-gray-200 rounded-xl
             flex flex-col items-center justify-center gap-2 text-gray-300">
@@ -110,13 +103,12 @@ function PreviewModal({ doc, onClose }) {
             <p className="text-xs font-semibold">Vista previa del documento</p>
             <p className="text-[10px]">Disponible al conectar la API</p>
           </div>
-
           <div className="grid grid-cols-2 gap-2">
             {[
-              { label: 'N° Documento', val: doc.docNumber || '—' },
+              { label: 'N° Documento',       val: doc.docNumber || '—' },
               { label: 'Fecha de obtención', val: doc.date },
-              { label: 'Estado', val: doc.verified ? '✓ Verificado' : 'Pendiente verificación', color: doc.verified ? 'text-emerald-600' : 'text-amber-600' },
-              { label: 'Uso en trámites', val: 'Activo' },
+              { label: 'Estado',             val: doc.verified ? '✓ Verificado' : 'Pendiente verificación', color: doc.verified ? 'text-emerald-600' : 'text-amber-600' },
+              { label: 'Uso en trámites',    val: 'Activo' },
             ].map(({ label, val, color }) => (
               <div key={label} className="bg-gray-50 rounded-xl px-3 py-2.5">
                 <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide">{label}</p>
@@ -124,7 +116,6 @@ function PreviewModal({ doc, onClose }) {
               </div>
             ))}
           </div>
-
           <div className="flex gap-3 mt-1">
             <button className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-gray-600 font-bold text-sm
               hover:border-gray-300 transition-colors flex items-center justify-center gap-1.5">
@@ -144,49 +135,64 @@ function PreviewModal({ doc, onClose }) {
   )
 }
 
-// Tipos de documentos que la plataforma puede emitir via trámites
-// Se comparan contra los que el usuario YA tiene para generar la sección "por obtener"
-const ALL_OBTAINABLE = [
-  { name: 'Extracto Bancario',             ico: '💳', hint: 'Obtenerlo via trámite bancario',       tramiteCode: 'extracto-bancario' },
-  { name: 'Certificado de Matrimonio',     ico: '💍', hint: 'Obtenerlo via SERECI',                 tramiteCode: 'cert-matrimonio'   },
-  { name: 'Título Universitario',          ico: '🎓', hint: 'Obtenerlo via institución educativa',  tramiteCode: null                },
-  { name: 'Certificado de Seguro de Salud',ico: '🛡️', hint: 'Obtenerlo via Seguros Bolivia',       tramiteCode: 'seguro-salud'      },
-]
-
 export default function Docs() {
   const navigate = useNavigate()
   const [docs,          setDocs]          = useState([])
+  const [missingDocs,   setMissingDocs]   = useState([])
   const [loading,       setLoading]       = useState(true)
   const [error,         setError]         = useState('')
   const [previewTarget, setPreviewTarget] = useState(null)
 
   useEffect(() => {
-  async function load() {
-    setLoading(true)
-    setError('')
-    try {
-      const data = await apiFetch('/user-documents')
-      console.log('[Docs] respuesta raw de /user-documents:', data)
-      console.log('[Docs] primer item (keys):', data?.[0] ? Object.keys(data[0]) : 'array vacío')
-      setDocs((data || []).map(mapUserDoc))
-    } catch (err) {
-      console.error('[Docs] error:', err)
-      setError(err.message || 'Error al cargar documentos')
-    } finally {
-      setLoading(false)
+    async function load() {
+      setLoading(true)
+      setError('')
+      try {
+        // 1. Carga docs del usuario y summaries de procedimientos en paralelo
+        const [docsData, procsData] = await Promise.all([
+          apiFetch('/user-documents'),
+          apiFetch('/procedures'),
+        ])
+
+        const mappedDocs = (docsData || []).map(mapUserDoc)
+        setDocs(mappedDocs)
+
+        // 2. Fetch detalle de cada procedimiento para obtener outputDocumentTypeName
+        const summaries = procsData || []
+        const details   = await Promise.all(
+          summaries.map(p => apiFetch(`/procedures/${p.id}`).catch(() => null))
+        )
+
+        const activeDocs  = mappedDocs.filter(d => d.status === 'active')
+        const userNames   = new Set(activeDocs.map(d => d.name))
+
+        // 3. Filtra procedimientos cuyo outputDocumentTypeName el usuario no tiene
+        const seen    = new Set()
+        const missing = []
+        details.forEach(proc => {
+          if (!proc) return
+          const outName = proc.outputDocumentTypeName
+          if (!outName || userNames.has(outName) || seen.has(outName)) return
+          seen.add(outName)
+          missing.push({
+            name: outName,
+            ico:  DOC_ICONS_BY_NAME[outName] || '📄',
+            hint: `Obtenerlo via ${proc.institutionName}`,
+          })
+        })
+        setMissingDocs(missing)
+
+      } catch (err) {
+        console.error('[Docs] error:', err)
+        setError(err.message || 'Error al cargar documentos')
+      } finally {
+        setLoading(false)
+      }
     }
-  }
-  load()
-}, [])
+    load()
+  }, [])
 
   const activeDocs = docs.filter(d => d.status === 'active')
-  const userNames   = new Set(activeDocs.map(d => d.name))
-const missingDocs = ALL_OBTAINABLE.filter(d => !userNames.has(d.name))
-
-  const handleObtener = (doc) => {
-    if (doc.tramiteCode) navigate(`/tramites?doc=${doc.tramiteCode}`)
-    else navigate('/tramites')
-  }
 
   return (
     <Layout title="📁 Repositorio de documentos">
@@ -229,7 +235,10 @@ const missingDocs = ALL_OBTAINABLE.filter(d => !userNames.has(d.name))
 
           <div className="w-full h-1.5 bg-gray-200 rounded-full mb-5 overflow-hidden">
             <div className="h-full bg-teal rounded-full transition-all duration-500"
-              style={{ width: `${activeDocs.length + missingDocs.length > 0 ? (activeDocs.length / (activeDocs.length + missingDocs.length)) * 100 : 0}%` }} />
+              style={{ width: `${activeDocs.length + missingDocs.length > 0
+                ? (activeDocs.length / (activeDocs.length + missingDocs.length)) * 100
+                : 0}%` }}
+            />
           </div>
 
           {activeDocs.length > 0 ? (
@@ -253,7 +262,7 @@ const missingDocs = ALL_OBTAINABLE.filter(d => !userNames.has(d.name))
               </h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {missingDocs.map(doc => (
-                    <MissingCard key={doc.name} doc={doc} onObtener={handleObtener} />
+                  <MissingCard key={doc.name} doc={doc} onObtener={() => navigate('/tramites')} />
                 ))}
               </div>
             </>
