@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
+import { apiFetch } from '../services/apiService'
 
 const STATUS_BADGE = {
   ready:    { label: 'Listo ✓',      cls: 'bg-emerald-100 text-emerald-700' },
@@ -12,7 +13,7 @@ const STATUS_BADGE = {
 const PROC_ICONS = {
   'CI': '🪪', 'Cédula': '🪪', 'Nacimiento': '📜', 'Partida': '📜',
   'Cuenta': '🏦', 'Bancaria': '🏦', 'Seguro': '🛡️', 'Salud': '🛡️',
-  'Domicilio': '🏠', 'Trabajo': '💼', 'default': '📄',
+  'Domicilio': '🏠', 'Trabajo': '💼', 'Extracto': '💳', 'default': '📄',
 }
 
 function getProcIcon(name = '') {
@@ -27,55 +28,63 @@ export default function Home() {
   const nombre = (user.fullName || 'Usuario').split(' ')[0]
   const userId = user.userId
 
-  const BASE  = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'
-  const token = localStorage.getItem('auth_token')
-  const hdrs  = { Authorization: `Bearer ${token}` }
-
-  const [userDocs,      setUserDocs]      = useState([])
-  const [applications,  setApplications]  = useState([])
-  const [procedures,    setProcedures]    = useState([])
-  const [loading,       setLoading]       = useState(true)
+  const [userDocs,       setUserDocs]       = useState([])
+  const [applications,   setApplications]   = useState([])
+  const [tramitesDetail, setTramitesDetail] = useState([])
+  const [loading,        setLoading]        = useState(true)
 
   useEffect(() => {
-    if (!userId) return
-    async function loadData() {
-      try {
-        const [docsRes, appsRes, procsRes] = await Promise.all([
-          fetch(`${BASE}/user-documents`,            { headers: hdrs }),
-          fetch(`${BASE}/applications/user/${userId}`,{ headers: hdrs }),
-          fetch(`${BASE}/procedures`,                { headers: hdrs }),
-        ])
-        const [docsJson, appsJson, procsJson] = await Promise.all([
-          docsRes.json(), appsRes.json(), procsRes.json(),
-        ])
-        setUserDocs(docsJson.data     || [])
-        setApplications(appsJson.data || [])
-        setProcedures(procsJson.data  || [])
-      } catch (err) {
-        console.error('[Home] error cargando datos:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-    loadData()
-  }, [userId])
+  if (!userId) return
+  async function loadData() {
+    try {
+      const [docsData, appsData, procsData] = await Promise.all([
+        apiFetch('/user-documents'),
+        apiFetch(`/applications/user/${userId}`),
+        apiFetch('/procedures'),
+      ])
 
-  // Stats calculados
-  const docsObtenidos  = userDocs.filter(d => d.status?.toLowerCase() === 'active').length
-  const enProceso      = applications.filter(a =>
+      const docs = docsData || []
+      setUserDocs(docs)
+      setApplications(appsData || [])
+
+      // Mismo filtro que Tramites: excluir los que el usuario ya tiene
+      const docNames = new Set(docs.map(d => d.documentTypeName))
+      const pendientes = (procsData || []).filter(
+        p => !docNames.has(p.outputDocumentTypeName)
+      )
+
+      // Fetch detalles solo de los primeros 4 pendientes
+      const details = await Promise.all(
+        pendientes.slice(0, 4).map(p =>
+          apiFetch(`/procedures/${p.id}`).catch(() => null)
+        )
+      )
+      setTramitesDetail(details.filter(Boolean))
+    } catch (err) {
+      console.error('[Home] error cargando datos:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+  loadData()
+}, [userId])
+
+  const docsObtenidos = userDocs.filter(d => d.status?.toLowerCase() === 'active').length
+  const enProceso     = applications.filter(a =>
     ['PENDING','PAYMENT_PENDING','IN_REVIEW','SUBMITTED'].includes(a.status)
   ).length
-  const completados    = applications.filter(a =>
+  const completados   = applications.filter(a =>
     ['COMPLETED','APPROVED'].includes(a.status)
   ).length
 
-  // Para la alerta: procedimientos que el usuario AÚN no tiene
-  const userDocNames   = new Set(userDocs.map(d => d.documentTypeName))
-  const tienesPendientes = procedures.some(p => !userDocNames.has(p.outputDocumentTypeName))
+  const userDocNames     = new Set(userDocs.map(d => d.documentTypeName))
+  const tienesPendientes = tramitesDetail.some(p =>
+    (p.requirements || []).some(r => r.isMandatory && !userDocNames.has(r.documentTypeName))
+  )
 
-  // Procedimientos para el listado (máx 4)
-  const tramitesDisplay = procedures.slice(0, 4).map(proc => {
-    const missing = (proc.requirements || []).filter(r => !userDocNames.has(r.documentTypeName)).length
+  const tramitesDisplay = tramitesDetail.map(proc => {
+    const reqs    = proc.requirements || []
+    const missing = reqs.filter(r => !userDocNames.has(r.documentTypeName)).length
     let status = 'ready'
     if (missing === 1) status = 'missing1'
     else if (missing === 2) status = 'missing2'
@@ -84,7 +93,7 @@ export default function Home() {
       ico:    getProcIcon(proc.name),
       name:   proc.name,
       inst:   proc.institutionName,
-      docs:   (proc.requirements || []).length,
+      docs:   reqs.length,
       price:  `Bs. ${proc.totalPrice ?? proc.basePrice ?? 0}`,
       status,
     }
@@ -93,43 +102,24 @@ export default function Home() {
   return (
     <Layout title={`👋 Bienvenido, ${nombre}`}>
 
-      {/* Alert — solo si tiene pendientes */}
       {tienesPendientes && (
         <div className="flex items-start sm:items-center gap-3 px-4 py-3 bg-amber-50 border border-amber-400 rounded-xl mb-5">
           <span className="text-lg flex-shrink-0">⚠️</span>
           <p className="text-xs sm:text-sm text-amber-800 flex-1">
             <strong>Tienes documentos pendientes de obtener.</strong> Inicia un trámite para conseguirlos.
           </p>
-          <button
-            onClick={() => navigate('/tramites')}
-            className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-amber-400 text-amber-900 text-xs font-bold hover:bg-amber-500 transition-colors whitespace-nowrap"
-          >
+          <button onClick={() => navigate('/tramites')}
+            className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-amber-400 text-amber-900 text-xs font-bold hover:bg-amber-500 transition-colors whitespace-nowrap">
             Ver trámites
           </button>
         </div>
       )}
 
-      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-5">
         {[
-          {
-            ico: '📄', label: 'Documentos obtenidos',
-            val: loading ? '…' : `${docsObtenidos}`,
-            sub: loading ? '' : `${userDocs.length - docsObtenidos} por obtener`,
-            color: 'text-navy',
-          },
-          {
-            ico: '🔄', label: 'En proceso',
-            val: loading ? '…' : `${enProceso}`,
-            sub: 'Trámites activos',
-            color: 'text-amber-500',
-          },
-          {
-            ico: '✅', label: 'Trámites completados',
-            val: loading ? '…' : `${completados}`,
-            sub: 'Total histórico',
-            color: 'text-emerald-500',
-          },
+          { ico: '📄', label: 'Documentos obtenidos', val: loading ? '…' : `${docsObtenidos}`,  sub: loading ? '' : `${userDocs.length - docsObtenidos} por obtener`, color: 'text-navy'        },
+          { ico: '🔄', label: 'En proceso',            val: loading ? '…' : `${enProceso}`,      sub: 'Trámites activos',  color: 'text-amber-500'   },
+          { ico: '✅', label: 'Trámites completados',  val: loading ? '…' : `${completados}`,    sub: 'Total histórico',   color: 'text-emerald-500' },
         ].map(({ ico, label, val, sub, color }) => (
           <div key={label} className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5">
             <div className="text-xl mb-2">{ico}</div>
@@ -140,47 +130,35 @@ export default function Home() {
         ))}
       </div>
 
-      {/* Quick actions */}
       <h2 className="text-sm font-black text-navy mb-3">Accesos rápidos</h2>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-        <button
-          onClick={() => navigate('/tramites', { state: { nuevo: true } })}
-          className="bg-teal rounded-2xl p-4 flex flex-col gap-2 text-left hover:bg-teal-hover transition-colors active:scale-95"
-        >
+        <button onClick={() => navigate('/tramites', { state: { nuevo: true } })}
+          className="bg-teal rounded-2xl p-4 flex flex-col gap-2 text-left hover:bg-teal-hover transition-colors active:scale-95">
           <span className="text-2xl">📝</span>
           <span className="text-sm font-bold text-white">Nuevo trámite</span>
         </button>
-        <button
-          onClick={() => navigate('/docs')}
-          className="bg-navy rounded-2xl p-4 flex flex-col gap-2 text-left hover:bg-navy-light transition-colors active:scale-95"
-        >
+        <button onClick={() => navigate('/docs')}
+          className="bg-navy rounded-2xl p-4 flex flex-col gap-2 text-left hover:bg-navy-light transition-colors active:scale-95">
           <span className="text-2xl">📁</span>
           <span className="text-sm font-bold text-white">Mis documentos</span>
         </button>
-        <button
-          onClick={() => navigate('/tickets')}
-          className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col gap-2 text-left hover:border-gray-300 transition-colors active:scale-95"
-        >
+        <button onClick={() => navigate('/tickets')}
+          className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col gap-2 text-left hover:border-gray-300 transition-colors active:scale-95">
           <span className="text-2xl">🎫</span>
           <span className="text-sm font-bold text-navy">Mis tickets</span>
         </button>
-        <button
-          onClick={() => navigate('/historial')}
-          className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col gap-2 text-left hover:border-gray-300 transition-colors active:scale-95"
-        >
+        <button onClick={() => navigate('/historial')}
+          className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col gap-2 text-left hover:border-gray-300 transition-colors active:scale-95">
           <span className="text-2xl">🕐</span>
           <span className="text-sm font-bold text-navy">Historial</span>
         </button>
       </div>
 
-      {/* Trámites */}
       <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-black text-navy">🚀 Trámites disponibles</h2>
-          <button
-            onClick={() => navigate('/tramites')}
-            className="px-3 py-1.5 rounded-lg bg-teal text-white text-xs font-bold hover:bg-teal-hover transition-colors"
-          >
+          <h2 className="text-sm font-black text-navy">🚀 Trámites</h2>
+          <button onClick={() => navigate('/tramites')}
+            className="px-3 py-1.5 rounded-lg bg-teal text-white text-xs font-bold hover:bg-teal-hover transition-colors">
             Ver todos
           </button>
         </div>
@@ -192,14 +170,11 @@ export default function Home() {
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
             </svg>
           </div>
-        ) : (
+        ) : tramitesDisplay.length > 0 ? (
           <ul className="divide-y divide-gray-100">
             {tramitesDisplay.map(({ ico, name, inst, docs, price, status }) => (
-              <li
-                key={name}
-                onClick={() => navigate('/tramites')}
-                className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors cursor-pointer"
-              >
+              <li key={name} onClick={() => navigate('/tramites')}
+                className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors cursor-pointer">
                 <div className="w-10 h-10 rounded-xl bg-teal-light flex items-center justify-center text-lg flex-shrink-0">
                   {ico}
                 </div>
@@ -213,6 +188,10 @@ export default function Home() {
               </li>
             ))}
           </ul>
+        ) : (
+          <div className="py-10 text-center">
+            <p className="text-sm font-bold text-navy">Sin trámites disponibles</p>
+          </div>
         )}
       </div>
 

@@ -21,7 +21,6 @@ const NAV = [
     section: 'Cuenta',
     items: [
       { ico: '👤', label: 'Perfil',        path: '/perfil' },
-      { ico: '⚙️', label: 'Configuración', path: '/config' },
     ],
   },
 ]

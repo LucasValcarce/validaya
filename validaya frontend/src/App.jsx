@@ -20,15 +20,16 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/"       element={<Landing />} />
-        <Route path="/login"  element={<Login />} />
-        <Route path="/home"   element={<Home />} />
-        <Route path="/docs"   element={<Docs />} />
-        <Route path="/historial" element={<Historial />} />
-        <Route path="/tickets" element={<Tickets />} />
-        <Route path="/perfil" element={<Perfil />} />
-        <Route path="/tramites" element={<Tramites />} />
-        <Route path="/tramite-flow" element={<TramiteFlow />} />
+        <Route path="/"     element={<Landing />} />
+        <Route path="/login" element={<Login />} />
+
+        <Route path="/home"         element={<PrivateRoute><Home /></PrivateRoute>} />
+        <Route path="/docs"         element={<PrivateRoute><Docs /></PrivateRoute>} />
+        <Route path="/historial"    element={<PrivateRoute><Historial /></PrivateRoute>} />
+        <Route path="/tickets"      element={<PrivateRoute><Tickets /></PrivateRoute>} />
+        <Route path="/perfil"       element={<PrivateRoute><Perfil /></PrivateRoute>} />
+        <Route path="/tramites"     element={<PrivateRoute><Tramites /></PrivateRoute>} />
+        <Route path="/tramite-flow" element={<PrivateRoute><TramiteFlow /></PrivateRoute>} />
       </Routes>
       <Analytics />
     </BrowserRouter>
