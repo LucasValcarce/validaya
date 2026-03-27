@@ -1,0 +1,32 @@
+FROM python:3.10-slim
+
+# System dependencies for OpenCV
+RUN apt-get update && apt-get install -y \
+    libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+# HuggingFace Spaces requires port 7860
+EXPOSE 7860
+
+ENV PORT=7860
+ENV FLASK_ENV=production
+
+# Pre-download ArcFace model weights at build time
+RUN python -c "from deepface import DeepFace; import numpy as np; \
+    DeepFace.represent(img_path=np.zeros((112,112,3), dtype='uint8'), \
+    model_name='ArcFace', detector_backend='opencv', enforce_detection=False)" \
+    || true
+
+CMD ["gunicorn", "-w", "2", "-b", "0.0.0.0:7860", "--timeout", "120", "app:app"]

@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
@@ -30,11 +31,12 @@ public class DataInitializer implements CommandLineRunner {
     private final PasswordEncoder passwordEncoder;
 
     @Override
+    @Transactional  // FIX #1: todo en una única transacción con flush garantizado
     public void run(String... args) {
         log.info("Inicializando datos base...");
         initAdminUser();
         initTestUsers();
-        initDocumentTypes();
+        initDocumentTypes();   // FIX #2: primero types, luego institutions/procedures
         initInstitutions();
         initTestUserDocuments();
         log.info("Datos base inicializados correctamente.");
@@ -57,7 +59,6 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void initTestUsers() {
-        // ── Juan Pérez — tiene CI, Nacimiento, Domicilio, Foto, Trabajo ──────
         if (!userRepository.existsByEmail("testuser@validaya.com")) {
             userRepository.save(User.builder()
                     .email("testuser@validaya.com")
@@ -69,7 +70,6 @@ public class DataInitializer implements CommandLineRunner {
             log.info("Usuario Juan Pérez creado: CI 1234567");
         }
 
-        // ── Isabela Ortiz — tiene CI y Nacimiento ────────────────────────────
         if (!userRepository.existsByEmail("isabela@validaya.com")) {
             userRepository.save(User.builder()
                     .email("isabela@validaya.com")
@@ -81,7 +81,6 @@ public class DataInitializer implements CommandLineRunner {
             log.info("Usuario Isabela Ortiz creado: CI 9876543");
         }
 
-        // ── Carlos Mamani — solo CI ──────────────────────────────────────────
         if (!userRepository.existsByEmail("carlos@validaya.com")) {
             userRepository.save(User.builder()
                     .email("carlos@validaya.com")
@@ -93,7 +92,6 @@ public class DataInitializer implements CommandLineRunner {
             log.info("Usuario Carlos Mamani creado: CI 7654321 (solo CI)");
         }
 
-        // ── Sofía Vargas — CI + Domicilio + Trabajo ─────────────────────────
         if (!userRepository.existsByEmail("sofia@validaya.com")) {
             userRepository.save(User.builder()
                     .email("sofia@validaya.com")
@@ -102,10 +100,9 @@ public class DataInitializer implements CommandLineRunner {
                     .identification("5551234")
                     .userType(UserType.citizen)
                     .isActive(true).faceVerified(false).build());
-            log.info("Usuario Sofía Vargas creada: CI 5551234 (CI + Domicilio + Trabajo)");
+            log.info("Usuario Sofía Vargas creada: CI 5551234");
         }
 
-        // ── Pedro Flores — tiene todos los documentos ────────────────────────
         if (!userRepository.existsByEmail("pedro@validaya.com")) {
             userRepository.save(User.builder()
                     .email("pedro@validaya.com")
@@ -119,18 +116,18 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void initDocumentTypes() {
-        createDocTypeIfAbsent("CI",                "Cédula de Identidad",           false);
-        createDocTypeIfAbsent("BIRTH_CERT",        "Certificado de Nacimiento",     false);
-        createDocTypeIfAbsent("MARRIAGE_CERT",     "Certificado de Matrimonio",     false);
-        createDocTypeIfAbsent("DEATH_CERT",        "Certificado de Defunción",      false);
-        createDocTypeIfAbsent("PASSPORT",          "Pasaporte",                     true);
-        createDocTypeIfAbsent("DRIVER_LICENSE",    "Licencia de Conducir",          false);
-        createDocTypeIfAbsent("TITLE",             "Título Universitario",          false);
-        createDocTypeIfAbsent("CERT_DOM",          "Certificado de Domicilio",      false);
-        createDocTypeIfAbsent("CERT_TRABAJO",      "Certificado de Trabajo",        false);
-        createDocTypeIfAbsent("EXTRACTO_BANCARIO", "Extracto Bancario",             false);
-        createDocTypeIfAbsent("FOTO",              "Fotografía Reciente",           false);
-        createDocTypeIfAbsent("SEGURO_SALUD",      "Certificado de Seguro de Salud",false);
+        createDocTypeIfAbsent("CI",                "Cédula de Identidad",            false);
+        createDocTypeIfAbsent("BIRTH_CERT",        "Certificado de Nacimiento",      false);
+        createDocTypeIfAbsent("MARRIAGE_CERT",     "Certificado de Matrimonio",      false);
+        createDocTypeIfAbsent("DEATH_CERT",        "Certificado de Defunción",       false);
+        createDocTypeIfAbsent("PASSPORT",          "Pasaporte",                      true);
+        createDocTypeIfAbsent("DRIVER_LICENSE",    "Licencia de Conducir",           false);
+        createDocTypeIfAbsent("TITLE",             "Título Universitario",           false);
+        createDocTypeIfAbsent("CERT_DOM",          "Certificado de Domicilio",       false);
+        createDocTypeIfAbsent("CERT_TRABAJO",      "Certificado de Trabajo",         false);
+        createDocTypeIfAbsent("EXTRACTO_BANCARIO", "Extracto Bancario",              false);
+        createDocTypeIfAbsent("FOTO",              "Fotografía Reciente",            false);
+        createDocTypeIfAbsent("SEGURO_SALUD",      "Certificado de Seguro de Salud", false);
     }
 
     private void createDocTypeIfAbsent(String code, String name, boolean biometric) {
@@ -142,6 +139,17 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     private void initInstitutions() {
+        // FIX #3: los DocumentType se obtienen UNA SOLA VEZ al inicio, fuera de los if-blocks.
+        // Así están disponibles tanto en el primer arranque como en reinicios.
+        DocumentType ci           = requireDocType("CI");
+        DocumentType foto         = requireDocType("FOTO");
+        DocumentType certTrab     = requireDocType("CERT_TRABAJO");
+        DocumentType birthCert    = requireDocType("BIRTH_CERT");
+        DocumentType marriageCert = requireDocType("MARRIAGE_CERT");
+        DocumentType certDom      = requireDocType("CERT_DOM");
+        DocumentType extracto     = requireDocType("EXTRACTO_BANCARIO");
+        DocumentType seguroSalud  = requireDocType("SEGURO_SALUD");
+
         // ── SEGIP ─────────────────────────────────────────────────────────────
         if (institutionRepository.findBySlug("segip").isEmpty()) {
             Institution segip = institutionRepository.save(Institution.builder()
@@ -155,20 +163,16 @@ public class DataInitializer implements CommandLineRunner {
                     .address("Calle Mercado esquina Colón, La Paz").city("La Paz")
                     .maxDailyAppointments(50).isActive(true).build());
 
-            DocumentType ci       = documentTypeRepository.findByCode("CI").orElse(null);
-            DocumentType foto     = documentTypeRepository.findByCode("FOTO").orElse(null);
-            DocumentType certTrab = documentTypeRepository.findByCode("CERT_TRABAJO").orElse(null);
-
-            Procedure primeraCI   = createProcedure(segip, "Primera Cédula de Identidad",
+            Procedure primeraCI = createProcedure(segip, "Primera Cédula de Identidad",
                     "primera-ci", new BigDecimal("30"), new BigDecimal("3"), 7, ci);
-            Procedure renovCI     = createProcedure(segip, "Renovación de Cédula de Identidad",
+            Procedure renovCI   = createProcedure(segip, "Renovación de Cédula de Identidad",
                     "renovacion-ci", new BigDecimal("50"), new BigDecimal("3"), 5, ci);
 
-            if (ci != null)       saveProcReqIfAbsent(primeraCI,  ci,       true,  "CI original y copia", 1);
-            if (foto != null)     saveProcReqIfAbsent(primeraCI,  foto,     true,  "Fotografía reciente", 2);
-            if (certTrab != null) saveProcReqIfAbsent(primeraCI,  certTrab, false, "Comprobante laboral (opcional)", 3);
-            if (ci != null)       saveProcReqIfAbsent(renovCI,    ci,       true,  "CI vencida", 1);
-            if (foto != null)     saveProcReqIfAbsent(renovCI,    foto,     false, "Fotografía reciente (opcional)", 2);
+            saveProcReqIfAbsent(primeraCI, ci,       true,  "CI original y copia", 1);
+            saveProcReqIfAbsent(primeraCI, foto,     true,  "Fotografía reciente", 2);
+            saveProcReqIfAbsent(primeraCI, certTrab, false, "Comprobante laboral (opcional)", 3);
+            saveProcReqIfAbsent(renovCI,   ci,       true,  "CI vencida", 1);
+            saveProcReqIfAbsent(renovCI,   foto,     false, "Fotografía reciente (opcional)", 2);
 
             createAppointmentSlots(sucursalLaPaz, 30);
             log.info("Institución SEGIP creada");
@@ -187,19 +191,15 @@ public class DataInitializer implements CommandLineRunner {
                     .address("Avenida Camacho esquina Ecuador, La Paz").city("La Paz")
                     .maxDailyAppointments(40).isActive(true).build());
 
-            DocumentType birthCert    = documentTypeRepository.findByCode("BIRTH_CERT").orElse(null);
-            DocumentType marriageCert = documentTypeRepository.findByCode("MARRIAGE_CERT").orElse(null);
-            DocumentType ci           = documentTypeRepository.findByCode("CI").orElse(null);
-
             Procedure certNac = createProcedure(sereci, "Certificado de Nacimiento",
                     "cert-nacimiento", new BigDecimal("20"), new BigDecimal("3"), 3, birthCert);
             Procedure certMat = createProcedure(sereci, "Certificado de Matrimonio",
                     "cert-matrimonio", new BigDecimal("20"), new BigDecimal("3"), 3, marriageCert);
 
-            if (birthCert != null)    saveProcReqIfAbsent(certNac, birthCert,    false, "Certificado de Nacimiento original", 1);
-            if (ci != null)           saveProcReqIfAbsent(certNac, ci,           false, "CI válida", 2);
-            if (marriageCert != null) saveProcReqIfAbsent(certMat, marriageCert, true,  "Certificado de Matrimonio original", 1);
-            if (ci != null)           saveProcReqIfAbsent(certMat, ci,           true,  "CI válida de ambos cónyuges", 2);
+            saveProcReqIfAbsent(certNac, birthCert,    false, "Certificado de Nacimiento original", 1);
+            saveProcReqIfAbsent(certNac, ci,           false, "CI válida", 2);
+            saveProcReqIfAbsent(certMat, marriageCert, true,  "Certificado de Matrimonio original", 1);
+            saveProcReqIfAbsent(certMat, ci,           true,  "CI válida de ambos cónyuges", 2);
 
             createAppointmentSlots(sucursalDowntown, 30);
             log.info("Institución SERECI creada");
@@ -218,14 +218,11 @@ public class DataInitializer implements CommandLineRunner {
                     .address("Plaza Principal, Santa Cruz de la Sierra").city("Santa Cruz")
                     .maxDailyAppointments(30).isActive(true).build());
 
-            DocumentType certDom = documentTypeRepository.findByCode("CERT_DOM").orElse(null);
-            DocumentType ci      = documentTypeRepository.findByCode("CI").orElse(null);
-
             Procedure certDomProc = createProcedure(gobMunicipal, "Certificado de Domicilio",
                     "cert-domicilio", new BigDecimal("0"), new BigDecimal("0"), 1, certDom);
 
-            if (ci != null)      saveProcReqIfAbsent(certDomProc, ci,      true,  "CI vigente", 1);
-            if (certDom != null) saveProcReqIfAbsent(certDomProc, certDom, false, "Certificado anterior (si aplica)", 2);
+            saveProcReqIfAbsent(certDomProc, ci,      true,  "CI vigente", 1);
+            saveProcReqIfAbsent(certDomProc, certDom, false, "Certificado anterior (si aplica)", 2);
 
             createAppointmentSlots(sucursalMunicipal, 30);
             log.info("Institución Gobierno Municipal creada");
@@ -244,20 +241,15 @@ public class DataInitializer implements CommandLineRunner {
                     .address("Calle Sucre, Santa Cruz de la Sierra").city("Santa Cruz")
                     .maxDailyAppointments(20).isActive(true).build());
 
-            DocumentType extracto = documentTypeRepository.findByCode("EXTRACTO_BANCARIO").orElse(null);
-            DocumentType ci       = documentTypeRepository.findByCode("CI").orElse(null);
-            DocumentType certDom  = documentTypeRepository.findByCode("CERT_DOM").orElse(null);
-            DocumentType certTrab = documentTypeRepository.findByCode("CERT_TRABAJO").orElse(null);
-
             Procedure extractoProc = createProcedure(banco, "Extracto Bancario",
                     "extracto-bancario", new BigDecimal("0"), new BigDecimal("0"), 0, extracto);
             Procedure cuentaProc   = createProcedure(banco, "Apertura de Cuenta Bancaria",
                     "apertura-cuenta", new BigDecimal("0"), new BigDecimal("3"), 1, extracto);
 
-            if (ci != null)       saveProcReqIfAbsent(extractoProc, ci,       true,  "CI vigente", 1);
-            if (ci != null)       saveProcReqIfAbsent(cuentaProc,   ci,       true,  "CI vigente", 1);
-            if (certDom != null)  saveProcReqIfAbsent(cuentaProc,   certDom,  true,  "Certificado de Domicilio", 2);
-            if (certTrab != null) saveProcReqIfAbsent(cuentaProc,   certTrab, false, "Certificado de trabajo (si aplica)", 3);
+            saveProcReqIfAbsent(extractoProc, ci,       true,  "CI vigente", 1);
+            saveProcReqIfAbsent(cuentaProc,   ci,       true,  "CI vigente", 1);
+            saveProcReqIfAbsent(cuentaProc,   certDom,  true,  "Certificado de Domicilio", 2);
+            saveProcReqIfAbsent(cuentaProc,   certTrab, false, "Certificado de trabajo (si aplica)", 3);
 
             createAppointmentSlots(sucursalBanco, 30);
             log.info("Institución Banco Nacional creada");
@@ -276,21 +268,14 @@ public class DataInitializer implements CommandLineRunner {
                     .address("Av. Monseñor Rivero, Santa Cruz de la Sierra").city("Santa Cruz")
                     .maxDailyAppointments(25).isActive(true).build());
 
-            DocumentType seguroSalud = documentTypeRepository.findByCode("SEGURO_SALUD").orElse(null);
-            DocumentType ci          = documentTypeRepository.findByCode("CI").orElse(null);
-            DocumentType certTrab    = documentTypeRepository.findByCode("CERT_TRABAJO").orElse(null);
-            DocumentType partida     = documentTypeRepository.findByCode("BIRTH_CERT").orElse(null);
-            DocumentType foto        = documentTypeRepository.findByCode("FOTO").orElse(null);
-            DocumentType certDom     = documentTypeRepository.findByCode("CERT_DOM").orElse(null);
-
             Procedure seguroProc = createProcedure(seguros, "Afiliación Seguro de Salud",
                     "seguro-salud", new BigDecimal("5"), new BigDecimal("3"), 3, seguroSalud);
 
-            if (ci != null)       saveProcReqIfAbsent(seguroProc, ci,       true,  "CI vigente", 1);
-            if (certTrab != null) saveProcReqIfAbsent(seguroProc, certTrab, true,  "Certificado de trabajo", 2);
-            if (partida != null)  saveProcReqIfAbsent(seguroProc, partida,  false, "Partida de nacimiento", 3);
-            if (foto != null)     saveProcReqIfAbsent(seguroProc, foto,     false, "Fotografía reciente 4×4", 4);
-            if (certDom != null)  saveProcReqIfAbsent(seguroProc, certDom,  false, "Certificado de domicilio", 5);
+            saveProcReqIfAbsent(seguroProc, ci,        true,  "CI vigente", 1);
+            saveProcReqIfAbsent(seguroProc, certTrab,  true,  "Certificado de trabajo", 2);
+            saveProcReqIfAbsent(seguroProc, birthCert, false, "Partida de nacimiento", 3);
+            saveProcReqIfAbsent(seguroProc, foto,      false, "Fotografía reciente 4×4", 4);
+            saveProcReqIfAbsent(seguroProc, certDom,   false, "Certificado de domicilio", 5);
 
             createAppointmentSlots(sucursalSeguros, 30);
             log.info("Institución Seguros Bolivia creada");
@@ -300,11 +285,11 @@ public class DataInitializer implements CommandLineRunner {
     private void initTestUserDocuments() {
         // ── Juan Pérez: CI, Nacimiento, Domicilio, Foto, Trabajo ─────────────
         userRepository.findByIdentification("1234567").ifPresent(u -> {
-            createUserDocIfAbsent(u, "CI",         DocumentStatus.active, VerificationStatus.verified,   DocumentSource.platform_generated, "1234567",    LocalDate.of(2020, 3, 12),  LocalDate.of(2028, 3, 12));
-            createUserDocIfAbsent(u, "BIRTH_CERT", DocumentStatus.active, VerificationStatus.verified,   DocumentSource.platform_generated, null,         LocalDate.of(1990, 6, 1),   null);
-            createUserDocIfAbsent(u, "CERT_DOM",   DocumentStatus.active, VerificationStatus.unverified, DocumentSource.manual_entry,       null,         LocalDate.of(2026, 1, 4),   LocalDate.of(2027, 1, 4));
-            createUserDocIfAbsent(u, "FOTO",       DocumentStatus.active, VerificationStatus.unverified, DocumentSource.manual_entry,       null,         LocalDate.of(2026, 2, 18),  null);
-            createUserDocIfAbsent(u, "CERT_TRABAJO",DocumentStatus.active,VerificationStatus.unverified, DocumentSource.manual_entry,       null,         LocalDate.of(2025, 12, 10), LocalDate.of(2026, 12, 10));
+            createUserDocIfAbsent(u, "CI",           DocumentStatus.active, VerificationStatus.verified,   DocumentSource.platform_generated, "1234567", LocalDate.of(2020, 3, 12),  LocalDate.of(2028, 3, 12));
+            createUserDocIfAbsent(u, "BIRTH_CERT",   DocumentStatus.active, VerificationStatus.verified,   DocumentSource.platform_generated, null,      LocalDate.of(1990, 6, 1),   null);
+            createUserDocIfAbsent(u, "CERT_DOM",     DocumentStatus.active, VerificationStatus.unverified, DocumentSource.manual_entry,       null,      LocalDate.of(2026, 1, 4),   LocalDate.of(2027, 1, 4));
+            createUserDocIfAbsent(u, "FOTO",         DocumentStatus.active, VerificationStatus.unverified, DocumentSource.manual_entry,       null,      LocalDate.of(2026, 2, 18),  null);
+            createUserDocIfAbsent(u, "CERT_TRABAJO", DocumentStatus.active, VerificationStatus.unverified, DocumentSource.manual_entry,       null,      LocalDate.of(2025, 12, 10), LocalDate.of(2026, 12, 10));
             log.info("Docs creados para Juan Pérez (1234567)");
         });
 
@@ -323,9 +308,9 @@ public class DataInitializer implements CommandLineRunner {
 
         // ── Sofía Vargas: CI + Domicilio + Trabajo ────────────────────────────
         userRepository.findByIdentification("5551234").ifPresent(u -> {
-            createUserDocIfAbsent(u, "CI",          DocumentStatus.active, VerificationStatus.verified, DocumentSource.platform_generated, "5551234", LocalDate.of(2019, 8, 15),  LocalDate.of(2027, 8, 15));
-            createUserDocIfAbsent(u, "CERT_DOM",    DocumentStatus.active, VerificationStatus.verified, DocumentSource.platform_generated, null,      LocalDate.of(2025, 11, 1),  LocalDate.of(2026, 11, 1));
-            createUserDocIfAbsent(u, "CERT_TRABAJO",DocumentStatus.active, VerificationStatus.verified, DocumentSource.platform_generated, null,      LocalDate.of(2025, 9, 20),  LocalDate.of(2026, 9, 20));
+            createUserDocIfAbsent(u, "CI",           DocumentStatus.active, VerificationStatus.verified, DocumentSource.platform_generated, "5551234", LocalDate.of(2019, 8, 15),  LocalDate.of(2027, 8, 15));
+            createUserDocIfAbsent(u, "CERT_DOM",     DocumentStatus.active, VerificationStatus.verified, DocumentSource.platform_generated, null,      LocalDate.of(2025, 11, 1),  LocalDate.of(2026, 11, 1));
+            createUserDocIfAbsent(u, "CERT_TRABAJO", DocumentStatus.active, VerificationStatus.verified, DocumentSource.platform_generated, null,      LocalDate.of(2025, 9, 20),  LocalDate.of(2026, 9, 20));
             log.info("Docs creados para Sofía Vargas (5551234)");
         });
 
@@ -345,17 +330,27 @@ public class DataInitializer implements CommandLineRunner {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    /**
+     * FIX #3: reemplaza los findByCode(...).orElse(null) dispersos dentro de los if-blocks.
+     * Lanza excepción clara si el tipo de documento no existe, evitando fallos silenciosos.
+     */
+    private DocumentType requireDocType(String code) {
+        return documentTypeRepository.findByCode(code)
+                .orElseThrow(() -> new IllegalStateException(
+                        "DocumentType con código '" + code + "' no existe. " +
+                                "Verifica que initDocumentTypes() se ejecutó correctamente."));
+    }
+
     private Procedure createProcedure(Institution institution, String name, String code,
                                       BigDecimal basePrice, BigDecimal platformFee,
                                       int estimatedDays, DocumentType outputDocumentType) {
-        if (procedureRepository.findByCode(code).isEmpty()) {
-            return procedureRepository.save(Procedure.builder()
-                    .institution(institution).name(name).code(code)
-                    .basePrice(basePrice).platformFee(platformFee)
-                    .estimatedDays(estimatedDays).outputDocumentType(outputDocumentType)
-                    .isActive(true).build());
-        }
-        return procedureRepository.findByCode(code).orElse(null);
+        return procedureRepository.findByCode(code).orElseGet(() ->
+                procedureRepository.save(Procedure.builder()
+                        .institution(institution).name(name).code(code)
+                        .basePrice(basePrice).platformFee(platformFee)
+                        .estimatedDays(estimatedDays).outputDocumentType(outputDocumentType)
+                        .isActive(true).build())
+        );
     }
 
     private void saveProcReqIfAbsent(Procedure procedure, DocumentType docType,
@@ -375,18 +370,23 @@ public class DataInitializer implements CommandLineRunner {
                                        DocumentStatus status, VerificationStatus verStatus,
                                        DocumentSource source, String docNumber,
                                        LocalDate issueDate, LocalDate expiryDate) {
-        documentTypeRepository.findByCode(docTypeCode).ifPresent(docType -> {
-            boolean exists = userDocumentRepository
-                    .findByUserIdAndDocumentTypeCode(user.getId(), docTypeCode)
-                    .isPresent();
-            if (!exists) {
-                userDocumentRepository.save(UserDocument.builder()
-                        .user(user).documentType(docType).status(status)
-                        .verificationStatus(verStatus).source(source)
-                        .documentNumber(docNumber).issueDate(issueDate).expiryDate(expiryDate)
-                        .build());
-            }
-        });
+        DocumentType docType = documentTypeRepository.findByCode(docTypeCode).orElse(null);
+        if (docType == null) {
+            // FIX #3: ahora loguea el problema en vez de fallar silenciosamente
+            log.warn("No se encontró DocumentType con código '{}' — documento omitido para usuario {}",
+                    docTypeCode, user.getIdentification());
+            return;
+        }
+        boolean exists = userDocumentRepository
+                .findByUserIdAndDocumentTypeCode(user.getId(), docTypeCode)
+                .isPresent();
+        if (!exists) {
+            userDocumentRepository.save(UserDocument.builder()
+                    .user(user).documentType(docType).status(status)
+                    .verificationStatus(verStatus).source(source)
+                    .documentNumber(docNumber).issueDate(issueDate).expiryDate(expiryDate)
+                    .build());
+        }
     }
 
     private void createAppointmentSlots(Branch branch, int days) {
